@@ -1,10 +1,27 @@
-export default function HomePage() {
+import { Container } from "../components/ui/Container";
+import { HeroBanner } from "../components/home/HeroBanner";
+import { CategoryTiles } from "../components/home/CategoryTiles";
+import { ProductShelf } from "../components/home/ProductShelf";
+import { getBanners, getCategoryTree, getProducts } from "../lib/serverApi";
+
+export default async function HomePage() {
+  const [banners, categories, featured, newArrivals, trending] = await Promise.all([
+    getBanners(),
+    getCategoryTree(),
+    getProducts({ featured: "true", limit: "8" }),
+    getProducts({ sort: "newest", limit: "8" }),
+    getProducts({ sort: "popularity", limit: "8" }),
+  ]);
+
   return (
-    <main className="flex min-h-screen items-center justify-center p-8">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold">Nimbus storefront scaffold is running.</h1>
-        <p className="mt-2 text-slate-600">The real home page lands in the catalog milestone.</p>
-      </div>
-    </main>
+    <Container className="flex flex-col gap-12 py-8">
+      <HeroBanner banners={banners} />
+
+      <CategoryTiles categories={categories} />
+
+      <ProductShelf title="Featured picks" viewAllHref="/products?featured=true" products={featured.items} />
+      <ProductShelf title="New arrivals" viewAllHref="/products?sort=newest" products={newArrivals.items} />
+      <ProductShelf title="Trending now" viewAllHref="/products?sort=popularity" products={trending.items} />
+    </Container>
   );
 }

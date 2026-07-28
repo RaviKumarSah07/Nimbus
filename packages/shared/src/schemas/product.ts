@@ -19,6 +19,10 @@ export const productQuerySchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((v) => (v === undefined ? undefined : v === "true")),
+  featured: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
   sort: z.enum(PRODUCT_SORT_OPTIONS).optional().default("newest"),
   page: coercedInt(1, 10_000, 1),
   limit: coercedInt(1, 60, 20),

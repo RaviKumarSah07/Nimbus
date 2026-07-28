@@ -89,6 +89,10 @@ async function buildWhereClause(query: ProductQueryInput): Promise<Prisma.Produc
     where.compareAtPrice = { not: null };
   }
 
+  if (query.featured !== undefined) {
+    where.isFeatured = query.featured;
+  }
+
   return where;
 }
 

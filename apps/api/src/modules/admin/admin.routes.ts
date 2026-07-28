@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate, requireRole } from "../../middleware/auth";
 import catalogAdminRoutes from "./catalog.admin.routes";
+import contentAdminRoutes from "./content.admin.routes";
 
 const router = Router();
 
@@ -10,5 +11,6 @@ const router = Router();
 router.use(authenticate, requireRole("ADMIN"));
 
 router.use("/", catalogAdminRoutes);
+router.use("/", contentAdminRoutes);
 
 export default router;
