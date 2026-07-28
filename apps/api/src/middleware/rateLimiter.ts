@@ -2,6 +2,7 @@ import rateLimit from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { redis } from "../lib/redis";
 import { ApiError } from "../utils/ApiError";
+import { env } from "../config/env";
 
 interface RateLimitOptions {
   windowMs: number;
@@ -22,6 +23,11 @@ export function createRateLimiter({ windowMs, max, keyPrefix }: RateLimitOptions
     max,
     standardHeaders: true,
     legacyHeaders: false,
+    // The integration test suite legitimately performs many more
+    // register/login calls per run than a real client would in the same
+    // window - rate limiting itself is exercised by unit-level assertions
+    // instead of by tripping the real limiter here.
+    skip: () => env.NODE_ENV === "test",
     store:
       redisClient && redisClient.status !== "end"
         ? new RedisStore({
