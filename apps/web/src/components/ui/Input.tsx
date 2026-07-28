@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes } from "react";
+import { forwardRef, useId, type InputHTMLAttributes } from "react";
 import clsx from "clsx";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -8,7 +8,10 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(({ className, label, error, hint, id, ...props }, ref) => {
-  const inputId = id ?? props.name;
+  // Falls back to a generated id so the <label> is always programmatically
+  // associated with its input, even when callers don't pass id/name.
+  const generatedId = useId();
+  const inputId = id ?? props.name ?? generatedId;
   return (
     <div className="flex flex-col gap-1">
       {label && (
