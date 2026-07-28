@@ -51,7 +51,12 @@ export async function getProducts(query: Record<string, string | undefined>): Pr
 }
 
 export async function getProductBySlug(slug: string): Promise<ProductDetail | null> {
-  return apiFetch<ProductDetail>(`/products/${slug}`, { tags: [`product:${slug}`], allowNotFound: true });
+  // Not cached: stock and rating/review counts change from direct client
+  // calls to the API (add-to-cart, checkout, submitting a review) that
+  // Next's fetch cache has no way to know about, so a visitor landing on
+  // the PDP right after doing one of those things must see it reflected
+  // immediately rather than a stale value from the last revalidation window.
+  return apiFetch<ProductDetail>(`/products/${slug}`, { tags: [`product:${slug}`], allowNotFound: true, revalidate: 0 });
 }
 
 export async function getRelatedProducts(slug: string): Promise<ProductSummary[]> {

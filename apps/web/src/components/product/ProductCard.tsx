@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "../ui/Badge";
 import { StarRating } from "../ui/StarRating";
+import { WishlistButton } from "./WishlistButton";
 import { formatCurrency, formatDiscountPercent } from "../../lib/formatCurrency";
 import type { ProductSummary } from "../../lib/types";
 
@@ -29,6 +30,7 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           {discount && discount > 0 && <Badge tone="danger">-{discount}%</Badge>}
           {!product.inStock && <Badge tone="neutral">Out of stock</Badge>}
         </div>
+        <WishlistButton productId={product.id} className="absolute right-2 top-2" />
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3">
         {product.brand && <span className="text-xs font-medium uppercase tracking-wide text-slate-400">{product.brand.name}</span>}

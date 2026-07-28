@@ -6,6 +6,8 @@ import { Container } from "../../../components/ui/Container";
 import { ProductGallery } from "../../../components/product/ProductGallery";
 import { ProductPurchasePanel } from "../../../components/product/ProductPurchasePanel";
 import { RatingBreakdown } from "../../../components/product/RatingBreakdown";
+import { ReviewForm } from "../../../components/product/ReviewForm";
+import { ReviewList } from "../../../components/product/ReviewList";
 import { RecentlyViewedTracker } from "../../../components/product/RecentlyViewedTracker";
 import { RecentlyViewed } from "../../../components/product/RecentlyViewed";
 import { ProductShelf } from "../../../components/home/ProductShelf";
@@ -97,6 +99,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <h2 className="mb-3 text-lg font-semibold text-slate-900">Ratings & reviews</h2>
           <RatingBreakdown avgRating={product.avgRating} ratingCount={product.ratingCount} breakdown={product.ratingBreakdown} />
         </div>
+      </section>
+
+      <section className="grid gap-6 border-t border-slate-100 pt-8 lg:grid-cols-2">
+        <ReviewForm productId={product.id} />
+        <ReviewList productId={product.id} />
       </section>
 
       {related.length > 0 && <ProductShelf title="You might also like" viewAllHref="/products" products={related} />}

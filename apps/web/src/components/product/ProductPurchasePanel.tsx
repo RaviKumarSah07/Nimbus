@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, ShoppingBag } from "lucide-react";
 import { Button } from "../ui/Button";
+import { WishlistButton } from "./WishlistButton";
 import { formatCurrency } from "../../lib/formatCurrency";
 import { useAddCartItemMutation } from "../../store/api/cartApi";
 import type { ProductDetail } from "../../lib/types";
@@ -120,6 +121,8 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
           {justAdded ? <Check className="h-4 w-4" aria-hidden="true" /> : <ShoppingBag className="h-4 w-4" aria-hidden="true" />}
           {justAdded ? "Added" : "Add to cart"}
         </Button>
+
+        <WishlistButton productId={product.id} variant="inline" />
       </div>
 
       {errorMessage && (
