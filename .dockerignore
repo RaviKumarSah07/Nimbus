@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/generated
+.git
+.github
+*.log
+.env
+.env.*
+!.env.example
+apps/web
