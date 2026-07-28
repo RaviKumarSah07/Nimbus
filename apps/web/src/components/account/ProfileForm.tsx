@@ -84,7 +84,7 @@ export function ProfileForm() {
           <Button type="submit" isLoading={isChangingPassword} className="w-fit">
             Update password
           </Button>
-          {passwordChanged && <p className="text-sm text-emerald-600">Password updated. You'll need to log in again on other devices.</p>}
+          {passwordChanged && <p className="text-sm text-emerald-600">Password updated. You&apos;ll need to log in again on other devices.</p>}
         </form>
       </section>
     </div>
