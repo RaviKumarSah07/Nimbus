@@ -5,6 +5,9 @@ import contentAdminRoutes from "./content.admin.routes";
 import couponAdminRoutes from "./coupon.admin.routes";
 import orderAdminRoutes from "./order.admin.routes";
 import reviewAdminRoutes from "./review.admin.routes";
+import userAdminRoutes from "./user.admin.routes";
+import dashboardAdminRoutes from "./dashboard.admin.routes";
+import uploadAdminRoutes from "./upload.admin.routes";
 
 const router = Router();
 
@@ -18,5 +21,8 @@ router.use("/", contentAdminRoutes);
 router.use("/", couponAdminRoutes);
 router.use("/", orderAdminRoutes);
 router.use("/", reviewAdminRoutes);
+router.use("/", userAdminRoutes);
+router.use("/", dashboardAdminRoutes);
+router.use("/", uploadAdminRoutes);
 
 export default router;
