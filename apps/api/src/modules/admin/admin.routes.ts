@@ -2,6 +2,8 @@ import { Router } from "express";
 import { authenticate, requireRole } from "../../middleware/auth";
 import catalogAdminRoutes from "./catalog.admin.routes";
 import contentAdminRoutes from "./content.admin.routes";
+import couponAdminRoutes from "./coupon.admin.routes";
+import orderAdminRoutes from "./order.admin.routes";
 
 const router = Router();
 
@@ -12,5 +14,7 @@ router.use(authenticate, requireRole("ADMIN"));
 
 router.use("/", catalogAdminRoutes);
 router.use("/", contentAdminRoutes);
+router.use("/", couponAdminRoutes);
+router.use("/", orderAdminRoutes);
 
 export default router;
