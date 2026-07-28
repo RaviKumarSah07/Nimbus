@@ -6,6 +6,23 @@ import { ApiError } from "../utils/ApiError";
 import { logger } from "../utils/logger";
 import { isProduction } from "../config/env";
 
+// `instanceof` can fail across a bundler/test-runner module boundary even
+// when both sides resolve the identical file on disk (a workspace package
+// loaded through Vitest's SSR transform vs. a plain `require` is the case
+// that bit us here) - so error identity is checked structurally as a
+// fallback, not just nominally.
+function isZodError(err: unknown): err is ZodError {
+  return err instanceof ZodError || (isErrorNamed(err, "ZodError") && Array.isArray((err as { issues?: unknown }).issues));
+}
+
+function isPrismaKnownRequestError(err: unknown): err is Prisma.PrismaClientKnownRequestError {
+  return err instanceof Prisma.PrismaClientKnownRequestError || (isErrorNamed(err, "PrismaClientKnownRequestError") && typeof (err as { code?: unknown }).code === "string");
+}
+
+function isErrorNamed(err: unknown, name: string): boolean {
+  return typeof err === "object" && err !== null && (err as { name?: string }).name === name;
+}
+
 export function notFoundHandler(req: Request, res: Response) {
   const body: ApiResponse<never> = {
     success: false,
@@ -25,7 +42,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
     return res.status(err.statusCode).json(body);
   }
 
-  if (err instanceof ZodError) {
+  if (isZodError(err)) {
     const body: ApiResponse<never> = {
       success: false,
       error: {
@@ -37,7 +54,7 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
     return res.status(400).json(body);
   }
 
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+  if (isPrismaKnownRequestError(err)) {
     if (err.code === "P2002") {
       const body: ApiResponse<never> = {
         success: false,

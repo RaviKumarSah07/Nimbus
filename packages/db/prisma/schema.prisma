@@ -1,6 +1,10 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/client"
+  // Sibling to both src/ and dist/ (not nested inside src/) so the same
+  // relative import ("../generated/client") resolves correctly whether
+  // it's tsx running src/index.ts directly (dev) or node running the
+  // tsc-compiled dist/index.js (production).
+  output   = "../generated/client"
 }
 
 datasource db {
