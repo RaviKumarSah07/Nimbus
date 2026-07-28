@@ -1,14 +1,15 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import clsx from "clsx";
 import type { ProductSortOption } from "@ecommerce/shared";
 
 const OPTIONS: { value: ProductSortOption; label: string }[] = [
-  { value: "newest", label: "Newest" },
-  { value: "price_asc", label: "Price: Low to High" },
-  { value: "price_desc", label: "Price: High to Low" },
-  { value: "rating", label: "Top Rated" },
-  { value: "popularity", label: "Most Popular" },
+  { value: "popularity", label: "Popularity" },
+  { value: "price_asc", label: "Price -- Low to High" },
+  { value: "price_desc", label: "Price -- High to Low" },
+  { value: "newest", label: "Newest First" },
+  { value: "rating", label: "Rating" },
 ];
 
 export function SortSelect({ current }: { current: string }) {
@@ -24,19 +25,23 @@ export function SortSelect({ current }: { current: string }) {
   }
 
   return (
-    <label className="flex items-center gap-2 text-sm text-slate-600">
-      Sort by
-      <select
-        value={current}
-        onChange={(e) => handleChange(e.target.value)}
-        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900"
-      >
-        {OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="flex items-center gap-2 overflow-x-auto rounded-md bg-white p-1.5 shadow-card" role="radiogroup" aria-label="Sort by">
+      <span className="shrink-0 pl-2 text-xs font-bold uppercase tracking-wide text-slate-500">Sort by</span>
+      {OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={current === option.value}
+          onClick={() => handleChange(option.value)}
+          className={clsx(
+            "shrink-0 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+            current === option.value ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100",
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }

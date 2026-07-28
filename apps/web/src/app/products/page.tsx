@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { Container } from "../../components/ui/Container";
 import { ProductFilters } from "../../components/product/ProductFilters";
 import { SortSelect } from "../../components/product/SortSelect";
@@ -28,14 +30,33 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     return `/products?${params.toString()}`;
   }
 
+  const activeCategoryName = searchParams.category
+    ? categories.flatMap((c) => [c, ...c.children]).find((c) => c.slug === searchParams.category)?.name
+    : undefined;
+
   return (
-    <Container className="flex flex-col gap-6 py-8 lg:flex-row">
+    <Container className="flex flex-col gap-4 py-4 lg:flex-row">
       <ProductFilters categories={categories} brands={brands} />
 
       <div className="flex-1">
-        <div className="mb-4 flex items-center justify-between">
+        <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1 text-xs text-slate-500">
+          <Link href="/" className="hover:text-brand-600">Home</Link>
+          <ChevronRight className="h-3 w-3" aria-hidden="true" />
+          {activeCategoryName ? (
+            <>
+              <Link href="/products" className="hover:text-brand-600">All products</Link>
+              <ChevronRight className="h-3 w-3" aria-hidden="true" />
+              <span className="font-medium text-slate-700">{activeCategoryName}</span>
+            </>
+          ) : (
+            <span className="font-medium text-slate-700">All products</span>
+          )}
+        </nav>
+
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            {result.meta.total} {result.meta.total === 1 ? "product" : "products"}
+            <span className="font-semibold text-slate-900">{result.meta.total}</span>{" "}
+            {result.meta.total === 1 ? "product" : "products"} found
           </p>
           <SortSelect current={searchParams.sort ?? "newest"} />
         </div>

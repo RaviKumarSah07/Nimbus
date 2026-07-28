@@ -46,7 +46,12 @@ export async function getProducts(query: Record<string, string | undefined>): Pr
   for (const [key, value] of Object.entries(query)) {
     if (value) qs.set(key, value);
   }
-  const result = await apiFetch<PaginatedResult<ProductSummary>>(`/products?${qs.toString()}`, { tags: ["products"] });
+  // Not cached, same reasoning as getProductBySlug below: the API already
+  // caches this list itself (with real invalidation on admin writes), so
+  // adding Next's time-based fetch cache on top only reintroduces the
+  // staleness that layer already solved - confirmed live when a deleted
+  // product kept appearing in the listing well past its cache window.
+  const result = await apiFetch<PaginatedResult<ProductSummary>>(`/products?${qs.toString()}`, { tags: ["products"], revalidate: 0 });
   return result ?? { items: [], meta: { page: 1, limit: 20, total: 0, totalPages: 1 } };
 }
 
@@ -60,7 +65,7 @@ export async function getProductBySlug(slug: string): Promise<ProductDetail | nu
 }
 
 export async function getRelatedProducts(slug: string): Promise<ProductSummary[]> {
-  return (await apiFetch<ProductSummary[]>(`/products/${slug}/related`)) ?? [];
+  return (await apiFetch<ProductSummary[]>(`/products/${slug}/related`, { revalidate: 0 })) ?? [];
 }
 
 export async function getProductsByIds(ids: string[]): Promise<ProductSummary[]> {

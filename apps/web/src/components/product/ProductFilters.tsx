@@ -57,10 +57,13 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
   const flatCategories = categories.flatMap((c) => [c, ...c.children]);
 
   return (
-    <aside className="flex w-full flex-col gap-6 lg:w-64 lg:shrink-0" aria-label="Product filters">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900">Filters</h2>
-        <button type="button" onClick={clearAll} className="text-xs font-medium text-brand-600 hover:underline">
+    <aside
+      className="flex w-full flex-col gap-6 rounded-md bg-white p-4 shadow-card lg:w-64 lg:shrink-0"
+      aria-label="Product filters"
+    >
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 className="text-base font-bold text-slate-900">Filters</h2>
+        <button type="button" onClick={clearAll} className="text-xs font-bold uppercase tracking-wide text-brand-600 hover:underline">
           Clear all
         </button>
       </div>
