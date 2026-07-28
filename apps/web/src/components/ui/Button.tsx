@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import clsx from "clsx";
 import { Loader2 } from "lucide-react";
 
-type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "cta" | "cta-outline";
 type Size = "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -17,6 +17,10 @@ const variantClasses: Record<Variant, string> = {
   outline: "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 disabled:text-slate-400",
   ghost: "text-slate-700 hover:bg-slate-100 disabled:text-slate-400",
   danger: "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300",
+  // Reserved for purchase actions (Add to Cart / Buy Now) - never used
+  // decoratively, so it always reads as "the button that buys the thing."
+  cta: "bg-accent-500 text-white hover:bg-accent-600 disabled:bg-accent-200 shadow-card",
+  "cta-outline": "border-2 border-accent-500 bg-white text-accent-700 hover:bg-accent-50 disabled:opacity-50",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -32,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || isLoading}
         className={clsx(
-          "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed",
+          "inline-flex items-center justify-center gap-2 rounded-md font-semibold transition-colors disabled:cursor-not-allowed",
           variantClasses[variant],
           sizeClasses[size],
           className,

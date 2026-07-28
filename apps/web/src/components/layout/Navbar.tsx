@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Container } from "../ui/Container";
@@ -10,46 +11,55 @@ export async function Navbar() {
   const categories = await getCategoryTree();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <Container className="flex h-16 items-center gap-6">
-        <Link href="/" className="shrink-0 text-xl font-bold tracking-tight text-slate-900">
-          Nimbus
-        </Link>
+    <header className="sticky top-0 z-30">
+      <div className="bg-brand-600">
+        <Container className="flex h-16 items-center gap-4 sm:gap-6">
+          <Link href="/" className="shrink-0 text-2xl font-black italic tracking-tight text-white">
+            Nimbus
+          </Link>
 
-        <div className="hidden flex-1 md:flex">
-          <Suspense fallback={<div className="h-10 w-full max-w-lg rounded-lg bg-slate-100" />}>
+          <div className="hidden flex-1 md:flex">
+            <Suspense fallback={<div className="h-10 w-full max-w-2xl rounded-sm bg-white/90" />}>
+              <SearchBar />
+            </Suspense>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1">
+            <CartIcon />
+            <AccountMenu />
+          </div>
+        </Container>
+
+        <div className="border-t border-white/10 p-3 md:hidden">
+          <Suspense fallback={<div className="h-10 w-full rounded-sm bg-white/90" />}>
             <SearchBar />
           </Suspense>
         </div>
-
-        <div className="ml-auto flex items-center gap-1">
-          <CartIcon />
-          <AccountMenu />
-        </div>
-      </Container>
-
-      <nav aria-label="Categories" className="hidden border-t border-slate-100 md:block">
-        <Container className="flex h-11 items-center gap-6 overflow-x-auto text-sm">
-          <Link href="/products" className="font-medium text-slate-600 hover:text-slate-900">
-            All products
-          </Link>
-          {categories.map((category) => (
-            <Link
-              key={category.id}
-              href={`/products?category=${category.slug}`}
-              className="whitespace-nowrap text-slate-600 hover:text-slate-900"
-            >
-              {category.name}
-            </Link>
-          ))}
-        </Container>
-      </nav>
-
-      <div className="border-t border-slate-100 p-3 md:hidden">
-        <Suspense fallback={<div className="h-10 w-full rounded-lg bg-slate-100" />}>
-          <SearchBar />
-        </Suspense>
       </div>
+
+      {categories.length > 0 && (
+        <nav aria-label="Categories" className="hidden border-b border-slate-200 bg-white shadow-sm md:block">
+          <Container className="flex h-14 items-center gap-7 overflow-x-auto text-sm">
+            <Link href="/products" className="shrink-0 font-semibold text-slate-700 hover:text-brand-600">
+              All products
+            </Link>
+            {categories.map((category) => (
+              <Link
+                key={category.id}
+                href={`/products?category=${category.slug}`}
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap font-medium text-slate-600 hover:text-brand-600"
+              >
+                {category.imageUrl && (
+                  <span className="relative h-6 w-6 overflow-hidden rounded-full bg-slate-100">
+                    <Image src={category.imageUrl} alt="" fill sizes="24px" className="object-cover" />
+                  </span>
+                )}
+                {category.name}
+              </Link>
+            ))}
+          </Container>
+        </nav>
+      )}
     </header>
   );
 }

@@ -7,7 +7,9 @@
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  /* Warm light-gray page plane, not white - lets white product/section
+     cards visibly lift off the page instead of blending into it. */
+  @apply bg-[#f1f3f6] text-slate-900 antialiased;
 }
 
 :focus-visible {

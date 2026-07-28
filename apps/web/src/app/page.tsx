@@ -1,5 +1,5 @@
 import { Container } from "../components/ui/Container";
-import { HeroBanner } from "../components/home/HeroBanner";
+import { HeroCarousel } from "../components/home/HeroCarousel";
 import { CategoryTiles } from "../components/home/CategoryTiles";
 import { ProductShelf } from "../components/home/ProductShelf";
 import { getBanners, getCategoryTree, getProducts } from "../lib/serverApi";
@@ -8,14 +8,14 @@ export default async function HomePage() {
   const [banners, categories, featured, newArrivals, trending] = await Promise.all([
     getBanners(),
     getCategoryTree(),
-    getProducts({ featured: "true", limit: "8" }),
-    getProducts({ sort: "newest", limit: "8" }),
-    getProducts({ sort: "popularity", limit: "8" }),
+    getProducts({ featured: "true", limit: "10" }),
+    getProducts({ sort: "newest", limit: "10" }),
+    getProducts({ sort: "popularity", limit: "10" }),
   ]);
 
   return (
-    <Container className="flex flex-col gap-12 py-8">
-      <HeroBanner banners={banners} />
+    <Container className="flex flex-col gap-4 py-4">
+      <HeroCarousel banners={banners} />
 
       <CategoryTiles categories={categories} />
 

@@ -36,16 +36,16 @@ export function AccountMenu() {
   }
 
   if (status === "idle" || status === "loading") {
-    return <div className="h-9 w-20 animate-pulse rounded-lg bg-slate-100" aria-hidden="true" />;
+    return <div className="h-9 w-20 animate-pulse rounded-md bg-white/20" aria-hidden="true" />;
   }
 
   if (!user) {
     return (
       <div className="flex items-center gap-2 text-sm">
-        <Link href="/login" className="rounded-lg px-3 py-2 font-medium text-slate-700 hover:bg-slate-100">
+        <Link href="/login" className="rounded-md px-3 py-2 font-semibold text-white hover:bg-white/10">
           Log in
         </Link>
-        <Link href="/register" className="rounded-lg bg-brand-600 px-3 py-2 font-medium text-white hover:bg-brand-700">
+        <Link href="/register" className="rounded-md bg-white px-4 py-2 font-semibold text-brand-700 hover:bg-brand-50">
           Sign up
         </Link>
       </div>
@@ -59,7 +59,7 @@ export function AccountMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
       >
         <User className="h-4 w-4" aria-hidden="true" />
         {user.name.split(" ")[0]}
