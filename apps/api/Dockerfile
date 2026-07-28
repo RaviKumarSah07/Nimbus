@@ -49,4 +49,7 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 
 EXPOSE 4000
-CMD ["node", "apps/api/dist/server.js"]
+# Applies any pending migrations before every start - safe to run on a
+# database that's already up to date (deploy is a no-op in that case), and
+# means a fresh deploy never boots against an un-migrated schema.
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma && node apps/api/dist/server.js"]
