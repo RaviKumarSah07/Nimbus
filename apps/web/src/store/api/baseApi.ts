@@ -2,6 +2,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from "@reduxjs/toolkit/query/react";
 import type { RootState } from "../makeStore";
 import { setCredentials, clearCredentials } from "../authSlice";
+import { getOrCreateGuestCartToken } from "../../lib/guestCart";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -10,13 +11,18 @@ const rawBaseQuery = fetchBaseQuery({
   credentials: "include",
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;
-    if (token) headers.set("Authorization", `Bearer ${token}`);
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    } else {
+      const guestToken = getOrCreateGuestCartToken();
+      if (guestToken) headers.set("x-guest-cart-token", guestToken);
+    }
     return headers;
   },
 });
 
 // Concurrent 401s must share one refresh call, not fire one each.
-let refreshInFlight: ReturnType<typeof rawBaseQuery> | null = null;
+let refreshInFlight: Promise<Awaited<ReturnType<typeof rawBaseQuery>>> | null = null;
 
 /**
  * Wraps fetchBaseQuery with silent-refresh-and-retry: on a 401 (expired
@@ -31,8 +37,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 
   if (result.error?.status === 401 && requestUrl !== "/auth/refresh") {
     if (!refreshInFlight) {
-      refreshInFlight = rawBaseQuery({ url: "/auth/refresh", method: "POST" }, api, extraOptions);
-      refreshInFlight.finally(() => {
+      refreshInFlight = Promise.resolve(rawBaseQuery({ url: "/auth/refresh", method: "POST" }, api, extraOptions)).finally(() => {
         refreshInFlight = null;
       });
     }
