@@ -210,6 +210,15 @@ export async function listProductsAdmin(page: number, limit: number) {
   return buildPaginatedResult(rows, total, page, limit);
 }
 
+export async function getProductByIdAdmin(id: string) {
+  const product = await prisma.product.findUnique({
+    where: { id },
+    include: { category: true, brand: true, variants: true, images: { orderBy: { position: "asc" } } },
+  });
+  if (!product || product.deletedAt) throw ApiError.notFound("Product not found");
+  return product;
+}
+
 export async function createProduct(input: CreateProductInput, actorUserId: string) {
   const product = await prisma.product.create({
     data: {

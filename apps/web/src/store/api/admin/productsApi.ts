@@ -14,6 +14,11 @@ export const adminProductsApi = baseApi.injectEndpoints({
           ? [...result.items.map((p) => ({ type: "AdminProduct" as const, id: p.id })), { type: "AdminProduct" as const, id: "LIST" }]
           : [{ type: "AdminProduct", id: "LIST" }],
     }),
+    getAdminProduct: builder.query<AdminProductDto, string>({
+      query: (id) => `/admin/products/${id}`,
+      transformResponse: unwrap<AdminProductDto>,
+      providesTags: (_r, _e, id) => [{ type: "AdminProduct", id }],
+    }),
     createAdminProduct: builder.mutation<AdminProductDto, CreateProductInput>({
       query: (body) => ({ url: "/admin/products", method: "POST", body }),
       transformResponse: unwrap<AdminProductDto>,
@@ -44,6 +49,7 @@ export const adminProductsApi = baseApi.injectEndpoints({
 
 export const {
   useGetAdminProductsQuery,
+  useGetAdminProductQuery,
   useCreateAdminProductMutation,
   useUpdateAdminProductMutation,
   useDeleteAdminProductMutation,

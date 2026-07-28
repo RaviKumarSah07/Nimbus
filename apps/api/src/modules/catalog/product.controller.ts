@@ -36,6 +36,11 @@ export const listAdmin = asyncHandler(async (req, res) => {
   sendSuccess(res, result);
 });
 
+export const getByIdAdmin = asyncHandler(async (req, res) => {
+  const product = await productService.getProductByIdAdmin(req.params.id);
+  sendSuccess(res, product);
+});
+
 export const create = asyncHandler(async (req, res) => {
   const product = await productService.createProduct(req.body, req.user!.id);
   sendSuccess(res, product, 201);

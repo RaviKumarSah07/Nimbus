@@ -19,6 +19,7 @@ const createBrandSchema = z.object({
 });
 
 router.get("/products", productController.listAdmin);
+router.get("/products/:id", productController.getByIdAdmin);
 router.post("/products", validate(createProductSchema), productController.create);
 router.patch("/products/:id", validate(updateProductSchema), productController.update);
 router.delete("/products/:id", productController.remove);
