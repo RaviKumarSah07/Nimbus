@@ -4,6 +4,7 @@ import catalogAdminRoutes from "./catalog.admin.routes";
 import contentAdminRoutes from "./content.admin.routes";
 import couponAdminRoutes from "./coupon.admin.routes";
 import orderAdminRoutes from "./order.admin.routes";
+import reviewAdminRoutes from "./review.admin.routes";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use("/", catalogAdminRoutes);
 router.use("/", contentAdminRoutes);
 router.use("/", couponAdminRoutes);
 router.use("/", orderAdminRoutes);
+router.use("/", reviewAdminRoutes);
 
 export default router;

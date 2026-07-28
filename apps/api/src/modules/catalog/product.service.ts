@@ -270,3 +270,17 @@ export async function softDeleteProduct(id: string, actorUserId: string) {
   await cacheDeleteByPrefix(LIST_CACHE_PREFIX);
   await recordAudit({ actorUserId, action: "product.delete", entityType: "Product", entityId: id });
 }
+
+/** Recomputes the denormalized avgRating/ratingCount on Product from the Review table - called whenever a review is created or removed. */
+export async function recomputeProductRating(productId: string) {
+  const agg = await prisma.review.aggregate({
+    where: { productId },
+    _avg: { rating: true },
+    _count: { rating: true },
+  });
+  await prisma.product.update({
+    where: { id: productId },
+    data: { avgRating: agg._avg.rating ?? 0, ratingCount: agg._count.rating },
+  });
+  await cacheDeleteByPrefix(LIST_CACHE_PREFIX);
+}
