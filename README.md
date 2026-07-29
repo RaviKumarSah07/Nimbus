@@ -155,7 +155,7 @@ cp packages/db/.env.example packages/db/.env
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 
-docker compose up -d          # Postgres on 5433, Redis on 6380 (remapped to avoid clashing with other local projects)
+docker compose up -d          # Postgres on 15432, Redis on 6380 (remapped to avoid clashing with other local projects/ports)
 npm run prisma:migrate:deploy # apply migrations
 npm run prisma:seed           # seed categories/products/coupons/admin+customer accounts
 
