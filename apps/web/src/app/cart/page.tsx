@@ -6,8 +6,8 @@ export const metadata: Metadata = { title: "Your cart" };
 
 export default function CartPage() {
   return (
-    <Container className="py-8">
-      <h1 className="mb-6 text-2xl font-bold text-slate-900">Your cart</h1>
+    <Container className="py-4">
+      <h1 className="mb-4 text-xl font-bold text-slate-900">My cart</h1>
       <CartContent />
     </Container>
   );

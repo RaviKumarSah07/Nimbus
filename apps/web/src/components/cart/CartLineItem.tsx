@@ -17,9 +17,9 @@ export function CartLineItem({ item }: { item: CartItemDto }) {
   const overStock = item.quantity > item.availableStock;
 
   return (
-    <li className="flex gap-4 border-b border-slate-100 py-4 last:border-none">
-      <Link href={`/product/${item.productSlug}`} className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-        {item.image && <Image src={item.image} alt={item.productName} fill sizes="96px" className="object-cover" />}
+    <li className="flex gap-4 border-b border-slate-100 px-4 py-5 last:border-none sm:px-5">
+      <Link href={`/product/${item.productSlug}`} className="relative h-24 w-24 shrink-0 overflow-hidden rounded-md bg-slate-50">
+        {item.image && <Image src={item.image} alt={item.productName} fill sizes="96px" className="object-contain p-2" />}
       </Link>
 
       <div className="flex flex-1 flex-col gap-1">

@@ -15,7 +15,7 @@ export function OrderReceipt({ orderId }: { orderId: string }) {
   if (error || !order) return <p className="text-sm text-red-600">We couldn&apos;t find that order.</p>;
 
   return (
-    <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8">
+    <div className="mx-auto max-w-2xl rounded-md bg-white p-8 shadow-card">
       <div className="flex items-center gap-3 text-emerald-600">
         <CheckCircle2 className="h-8 w-8" aria-hidden="true" />
         <div>
@@ -75,7 +75,7 @@ export function OrderReceipt({ orderId }: { orderId: string }) {
         </Link>
         {order.guestEmail === null && (
           <Link href={`/account/orders/${order.id}`}>
-            <Button>View order details</Button>
+            <Button variant="cta">View order details</Button>
           </Link>
         )}
       </div>

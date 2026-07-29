@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, ShieldCheck } from "lucide-react";
 import { useGetCartQuery } from "../../store/api/cartApi";
 import { useAppSelector } from "../../store/hooks";
 import { CartLineItem } from "./CartLineItem";
@@ -40,8 +40,8 @@ export function CartContent() {
   const hasBlockingIssue = items.some((item) => item.quantity > item.availableStock);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-3">
-      <div className="lg:col-span-2">
+    <div className="grid gap-4 lg:grid-cols-3">
+      <div className="rounded-md bg-white shadow-card lg:col-span-2">
         <ul>
           {items.map((item) => (
             <CartLineItem key={item.id} item={item} />
@@ -49,8 +49,8 @@ export function CartContent() {
         </ul>
       </div>
 
-      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
+      <aside className="h-fit rounded-md bg-white p-5 shadow-card">
+        <h2 className="border-b border-slate-100 pb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Price details</h2>
         <dl className="mt-4 flex justify-between text-sm text-slate-600">
           <dt>Subtotal ({data?.itemCount} items)</dt>
           <dd className="font-medium text-slate-900">{formatCurrency(data?.subtotal ?? 0)}</dd>
@@ -62,6 +62,8 @@ export function CartContent() {
         )}
 
         <Button
+          variant="cta"
+          size="lg"
           className="mt-4 w-full"
           disabled={hasBlockingIssue}
           onClick={() => router.push("/checkout")}
@@ -71,6 +73,10 @@ export function CartContent() {
         <Link href="/products" className="mt-3 block text-center text-sm text-brand-600 hover:underline">
           Continue shopping
         </Link>
+
+        <p className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
+          <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" /> Safe and secure checkout
+        </p>
       </aside>
     </div>
   );

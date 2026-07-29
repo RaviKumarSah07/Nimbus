@@ -87,7 +87,7 @@ export function CheckoutForm() {
     <div className="grid gap-8 lg:grid-cols-3">
       <form id="checkout-form" onSubmit={handleSubmit} className="flex flex-col gap-6 lg:col-span-2">
         {!isAuthed && (
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <section className="rounded-md bg-white p-5 shadow-card">
             <h2 className="mb-3 text-sm font-semibold text-slate-900">Contact</h2>
             <Input
               label="Email"
@@ -100,7 +100,7 @@ export function CheckoutForm() {
           </section>
         )}
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <section className="rounded-md bg-white p-5 shadow-card">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Shipping address</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Full name" value={address.fullName} onChange={(e) => setField("fullName", e.target.value)} required />
@@ -120,7 +120,7 @@ export function CheckoutForm() {
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <section className="rounded-md bg-white p-5 shadow-card">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">Payment</h2>
           <p className="text-sm text-slate-500">
             You&apos;ll be taken to a secure checkout to pay. This is a portfolio demo - no real payment is processed.
@@ -133,13 +133,13 @@ export function CheckoutForm() {
           </p>
         )}
 
-        <Button type="submit" size="lg" isLoading={isSubmitting} className="w-full lg:hidden">
+        <Button type="submit" variant="cta" size="lg" isLoading={isSubmitting} className="w-full lg:hidden">
           Place order
         </Button>
       </form>
 
-      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-6">
-        <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
+      <aside className="h-fit rounded-md bg-white p-6 shadow-card">
+        <h2 className="border-b border-slate-100 pb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Order summary</h2>
         <ul className="mt-4 flex flex-col gap-2 text-sm">
           {cart.items.map((item) => (
             <li key={item.id} className="flex justify-between gap-2 text-slate-600">
@@ -183,7 +183,7 @@ export function CheckoutForm() {
           <p className="pt-1 text-xs text-slate-400">Shipping and tax are calculated and shown on your confirmation page.</p>
         </dl>
 
-        <Button type="submit" form="checkout-form" size="lg" isLoading={isSubmitting} className="mt-4 hidden w-full lg:flex">
+        <Button type="submit" form="checkout-form" variant="cta" size="lg" isLoading={isSubmitting} className="mt-4 hidden w-full lg:flex">
           Place order
         </Button>
       </aside>
