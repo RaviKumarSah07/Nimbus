@@ -1,4 +1,4 @@
-import { StarRating } from "../ui/StarRating";
+import { Star } from "lucide-react";
 
 export function RatingBreakdown({
   avgRating,
@@ -11,9 +11,11 @@ export function RatingBreakdown({
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8">
-      <div className="flex flex-col items-center gap-1">
-        <span className="text-3xl font-bold text-slate-900">{avgRating.toFixed(1)}</span>
-        <StarRating rating={avgRating} />
+      <div className="flex flex-col items-center gap-1.5">
+        <span className="flex items-center gap-1.5 rounded bg-emerald-700 px-3 py-1 text-2xl font-bold text-white">
+          {avgRating.toFixed(1)}
+          <Star className="h-5 w-5 fill-white" aria-hidden="true" />
+        </span>
         <span className="text-xs text-slate-500">{ratingCount} ratings</span>
       </div>
       <div className="flex-1 space-y-1">

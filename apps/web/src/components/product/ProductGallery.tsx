@@ -16,7 +16,7 @@ export function ProductGallery({ images, productName }: { images: GalleryImage[]
   const active = images[activeIndex];
 
   if (!active) {
-    return <div className="aspect-square w-full rounded-xl bg-slate-100" />;
+    return <div className="aspect-square w-full rounded-md bg-slate-50" />;
   }
 
   return (
@@ -24,7 +24,7 @@ export function ProductGallery({ images, productName }: { images: GalleryImage[]
       <button
         type="button"
         onClick={() => setIsZoomed(true)}
-        className="group relative aspect-square w-full overflow-hidden rounded-xl bg-slate-100"
+        className="group relative aspect-square w-full overflow-hidden rounded-md bg-slate-50"
         aria-label="Open full-size image"
       >
         <Image
@@ -33,7 +33,7 @@ export function ProductGallery({ images, productName }: { images: GalleryImage[]
           fill
           priority
           sizes="(min-width: 1024px) 45vw, 100vw"
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          className="object-contain p-6 transition-transform duration-300 group-hover:scale-105"
         />
       </button>
 

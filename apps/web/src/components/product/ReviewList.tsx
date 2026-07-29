@@ -13,11 +13,17 @@ export function ReviewList({ productId }: { productId: string }) {
 
   if (isFetching && !data) return <Spinner label="Loading reviews" />;
   if (!data || data.items.length === 0) {
-    return <p className="text-sm text-slate-500">No written reviews yet - be the first.</p>;
+    return (
+      <div>
+        <h2 className="mb-2 text-lg font-semibold text-slate-900">Customer reviews</h2>
+        <p className="text-sm text-slate-500">No written reviews yet - be the first.</p>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold text-slate-900">Customer reviews</h2>
       <ul className="flex flex-col gap-4">
         {data.items.map((review) => (
           <li key={review.id} className="border-b border-slate-100 pb-4 last:border-none">

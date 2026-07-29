@@ -2,14 +2,16 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, ShoppingBag } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, ShoppingBag, Zap } from "lucide-react";
 import { Button } from "../ui/Button";
 import { WishlistButton } from "./WishlistButton";
-import { formatCurrency } from "../../lib/formatCurrency";
+import { formatCurrency, formatDiscountPercent } from "../../lib/formatCurrency";
 import { useAddCartItemMutation } from "../../store/api/cartApi";
 import type { ProductDetail } from "../../lib/types";
 
 export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
+  const router = useRouter();
   const sizes = useMemo(() => Array.from(new Set(product.variants.map((v) => v.size).filter(Boolean))) as string[], [product.variants]);
   const colors = useMemo(() => Array.from(new Set(product.variants.map((v) => v.color).filter(Boolean))) as string[], [product.variants]);
 
@@ -17,6 +19,7 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
   const [selectedColor, setSelectedColor] = useState<string | undefined>(colors[0]);
   const [quantity, setQuantity] = useState(1);
   const [addCartItem, { isLoading }] = useAddCartItemMutation();
+  const [isBuyingNow, setIsBuyingNow] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -25,6 +28,7 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
     product.variants[0];
 
   const price = selectedVariant.priceOverride ?? product.basePrice;
+  const discount = product.compareAtPrice ? formatDiscountPercent(price, product.compareAtPrice) : null;
   const inStock = selectedVariant.stock > 0;
 
   async function handleAddToCart() {
@@ -40,13 +44,27 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
     }
   }
 
+  async function handleBuyNow() {
+    setErrorMessage(null);
+    setIsBuyingNow(true);
+    try {
+      await addCartItem({ variantId: selectedVariant.id, quantity }).unwrap();
+      router.push("/checkout");
+    } catch (err) {
+      const message = (err as { data?: { error?: { message?: string } } })?.data?.error?.message ?? "Could not start checkout";
+      setErrorMessage(message);
+      setIsBuyingNow(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-baseline gap-3">
-        <span className="text-2xl font-bold text-slate-900">{formatCurrency(price, product.currency)}</span>
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <span className="text-3xl font-bold text-slate-900">{formatCurrency(price, product.currency)}</span>
         {product.compareAtPrice && (
           <span className="text-lg text-slate-400 line-through">{formatCurrency(product.compareAtPrice, product.currency)}</span>
         )}
+        {discount && discount > 0 && <span className="text-lg font-semibold text-emerald-700">{discount}% off</span>}
       </div>
 
       {colors.length > 0 && (
@@ -59,7 +77,7 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
                 type="button"
                 onClick={() => setSelectedColor(color)}
                 aria-pressed={selectedColor === color}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                className={`rounded-md border px-3 py-1.5 text-sm ${
                   selectedColor === color ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-300 text-slate-600 hover:border-slate-400"
                 }`}
               >
@@ -80,7 +98,7 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
                 type="button"
                 onClick={() => setSelectedSize(size)}
                 aria-pressed={selectedSize === size}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                className={`rounded-md border px-3 py-1.5 text-sm ${
                   selectedSize === size ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-300 text-slate-600 hover:border-slate-400"
                 }`}
               >
@@ -108,7 +126,7 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
           value={quantity}
           onChange={(e) => setQuantity(Number(e.target.value))}
           disabled={!inStock}
-          className="h-10 rounded-lg border border-slate-300 px-2 text-sm"
+          className="h-10 rounded-md border border-slate-300 px-2 text-sm"
         >
           {Array.from({ length: Math.min(selectedVariant.stock, 10) || 1 }, (_, i) => i + 1).map((n) => (
             <option key={n} value={n}>
@@ -117,12 +135,17 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
           ))}
         </select>
 
-        <Button onClick={handleAddToCart} disabled={!inStock} isLoading={isLoading} className="flex-1">
+        <WishlistButton productId={product.id} variant="inline" />
+      </div>
+
+      <div className="flex gap-3">
+        <Button variant="cta-outline" size="lg" onClick={handleAddToCart} disabled={!inStock} isLoading={isLoading} className="flex-1">
           {justAdded ? <Check className="h-4 w-4" aria-hidden="true" /> : <ShoppingBag className="h-4 w-4" aria-hidden="true" />}
           {justAdded ? "Added" : "Add to cart"}
         </Button>
-
-        <WishlistButton productId={product.id} variant="inline" />
+        <Button variant="cta" size="lg" onClick={handleBuyNow} disabled={!inStock} isLoading={isBuyingNow} className="flex-1">
+          <Zap className="h-4 w-4" aria-hidden="true" /> Buy now
+        </Button>
       </div>
 
       {errorMessage && (

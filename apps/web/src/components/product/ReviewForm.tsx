@@ -19,17 +19,25 @@ export function ReviewForm({ productId }: { productId: string }) {
 
   if (!isAuthed) {
     return (
-      <p className="text-sm text-slate-500">
-        <Link href="/login" className="font-medium text-brand-600 hover:underline">
-          Log in
-        </Link>{" "}
-        to write a review.
-      </p>
+      <div>
+        <h2 className="mb-2 text-lg font-semibold text-slate-900">Write a review</h2>
+        <p className="text-sm text-slate-500">
+          <Link href="/login" className="font-medium text-brand-600 hover:underline">
+            Log in
+          </Link>{" "}
+          to write a review.
+        </p>
+      </div>
     );
   }
 
   if (isSuccess) {
-    return <p className="text-sm text-emerald-600">Thanks for your review!</p>;
+    return (
+      <div>
+        <h2 className="mb-2 text-lg font-semibold text-slate-900">Write a review</h2>
+        <p className="text-sm text-emerald-600">Thanks for your review!</p>
+      </div>
+    );
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -42,8 +50,8 @@ export function ReviewForm({ productId }: { productId: string }) {
     error && "data" in error ? String((error.data as { error?: { message?: string } })?.error?.message ?? "Could not submit review") : undefined;
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-sm font-medium text-slate-700">Write a review</p>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold text-slate-900">Write a review</h2>
       <div className="flex gap-1" role="radiogroup" aria-label="Rating">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
