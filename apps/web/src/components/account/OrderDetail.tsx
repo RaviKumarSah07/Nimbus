@@ -47,7 +47,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           <Badge tone="brand">{order.status}</Badge>
         </div>
 
-        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+        <ul className="divide-y divide-slate-100 rounded-md bg-white shadow-card">
           {order.items.map((item) => {
             const existingReturn = order.returnRequests?.find((r) => r.orderItemId === item.id);
             return (
@@ -121,12 +121,12 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       </div>
 
       <div className="flex flex-col gap-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="rounded-md bg-white shadow-card p-5">
           <h2 className="mb-4 text-sm font-semibold text-slate-900">Tracking</h2>
           {order.statusHistory && <OrderStatusTimeline history={order.statusHistory} />}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="rounded-md bg-white shadow-card p-5">
           <h2 className="mb-2 text-sm font-semibold text-slate-900">Summary</h2>
           <dl className="space-y-1 text-sm text-slate-600">
             <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatCurrency(Number(order.subtotal))}</dd></div>
@@ -137,7 +137,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           </dl>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="rounded-md bg-white shadow-card p-5">
           <h2 className="mb-2 text-sm font-semibold text-slate-900">Shipping address</h2>
           <p className="text-sm text-slate-500">
             {order.shippingAddress.fullName}

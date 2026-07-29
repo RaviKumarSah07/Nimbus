@@ -33,7 +33,7 @@ export function OrderHistoryList() {
         <li key={order.id}>
           <Link
             href={`/account/orders/${order.id}`}
-            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-300 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-md bg-white p-4 shadow-card transition-shadow hover:shadow-card-hover sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
               <p className="text-sm font-semibold text-slate-900">{order.orderNumber}</p>

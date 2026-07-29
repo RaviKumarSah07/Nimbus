@@ -45,7 +45,7 @@ export function AddressForm({ initial, onDone }: AddressFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2">
+    <form onSubmit={handleSubmit} className="grid gap-3 rounded-md bg-white shadow-card p-4 sm:grid-cols-2">
       <Input label="Label (optional)" value={fields.label} onChange={(e) => set("label", e.target.value)} placeholder="Home, Office..." />
       <Input label="Full name" value={fields.fullName} onChange={(e) => set("fullName", e.target.value)} required />
       <Input label="Phone" value={fields.phone} onChange={(e) => set("phone", e.target.value)} required />

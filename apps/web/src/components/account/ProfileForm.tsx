@@ -43,7 +43,7 @@ export function ProfileForm() {
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-md bg-white shadow-card p-6">
         <h2 className="text-lg font-semibold text-slate-900">Profile</h2>
         <form onSubmit={handleProfileSubmit} className="mt-4 grid max-w-md gap-4">
           <Input label="Email" value={user.email} disabled />
@@ -56,7 +56,7 @@ export function ProfileForm() {
         </form>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-md bg-white shadow-card p-6">
         <h2 className="text-lg font-semibold text-slate-900">Change password</h2>
         <form onSubmit={handlePasswordSubmit} className="mt-4 grid max-w-md gap-4">
           <Input

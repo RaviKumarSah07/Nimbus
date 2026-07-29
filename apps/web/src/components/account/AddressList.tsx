@@ -34,7 +34,7 @@ export function AddressList() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {addresses.map((address) => (
-            <div key={address.id} className="rounded-xl border border-slate-200 bg-white p-4">
+            <div key={address.id} className="rounded-md bg-white shadow-card p-4">
               <div className="flex items-start justify-between">
                 <div>
                   {address.label && <p className="text-sm font-semibold text-slate-900">{address.label}</p>}
