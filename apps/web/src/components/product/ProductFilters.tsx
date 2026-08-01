@@ -7,12 +7,24 @@ import { StarRating } from "../ui/StarRating";
 import { Button } from "../ui/Button";
 import type { BrandSummary, CategoryNode } from "../../lib/types";
 
-interface ProductFiltersProps {
+export interface ProductFiltersProps {
   categories: CategoryNode[];
   brands: BrandSummary[];
 }
 
-export function ProductFilters({ categories, brands }: ProductFiltersProps) {
+/** Query keys this panel owns - used for counting and clearing active filters. */
+export const FILTER_PARAM_KEYS = ["category", "brand", "minPrice", "maxPrice", "minRating", "inStock", "onSale"] as const;
+
+export function countActiveFilters(searchParams: URLSearchParams) {
+  return FILTER_PARAM_KEYS.filter((key) => searchParams.get(key)).length;
+}
+
+/**
+ * The filter controls themselves, with no layout chrome. Rendered as a
+ * sidebar on desktop and inside a bottom sheet on mobile, so both surfaces
+ * stay in sync from one definition.
+ */
+export function ProductFilterControls({ categories, brands }: ProductFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -30,7 +42,7 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
     const params = new URLSearchParams(searchParams.toString());
     mutate(params);
     params.delete("page");
-    router.push(`${pathname}?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
   function toggleParam(key: string, value: string) {
@@ -50,24 +62,10 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
     });
   }
 
-  function clearAll() {
-    router.push(pathname);
-  }
-
   const flatCategories = categories.flatMap((c) => [c, ...c.children]);
 
   return (
-    <aside
-      className="flex w-full flex-col gap-6 rounded-md bg-white p-4 shadow-card lg:w-64 lg:shrink-0"
-      aria-label="Product filters"
-    >
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h2 className="text-base font-bold text-slate-900">Filters</h2>
-        <button type="button" onClick={clearAll} className="text-xs font-bold uppercase tracking-wide text-brand-600 hover:underline">
-          Clear all
-        </button>
-      </div>
-
+    <div className="flex flex-col gap-6">
       <FilterGroup title="Category">
         <div className="flex flex-col gap-1">
           {flatCategories.map((category) => (
@@ -75,8 +73,9 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
               key={category.id}
               type="button"
               onClick={() => toggleParam("category", category.slug)}
+              aria-pressed={activeCategory === category.slug}
               className={clsx(
-                "rounded-md px-2 py-1.5 text-left text-sm",
+                "rounded-md px-2 py-2 text-left text-sm lg:py-1.5",
                 activeCategory === category.slug ? "bg-brand-50 font-medium text-brand-700" : "text-slate-600 hover:bg-slate-50",
               )}
             >
@@ -90,7 +89,7 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
         <FilterGroup title="Brand">
           <div className="flex flex-col gap-1">
             {brands.map((brand) => (
-              <label key={brand.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+              <label key={brand.id} className="flex items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 hover:bg-slate-50 lg:py-1.5">
                 <input
                   type="checkbox"
                   checked={activeBrand === brand.slug}
@@ -113,7 +112,7 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
             placeholder="Min"
             value={minPrice}
             onChange={(e) => setMinPrice(e.target.value)}
-            className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm"
+            className="h-10 w-full rounded-lg border border-slate-300 px-2 text-sm lg:h-9"
             aria-label="Minimum price"
           />
           <span className="text-slate-400">–</span>
@@ -124,7 +123,7 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
             placeholder="Max"
             value={maxPrice}
             onChange={(e) => setMaxPrice(e.target.value)}
-            className="h-9 w-full rounded-lg border border-slate-300 px-2 text-sm"
+            className="h-10 w-full rounded-lg border border-slate-300 px-2 text-sm lg:h-9"
             aria-label="Maximum price"
           />
           <Button type="submit" size="sm" variant="outline">
@@ -140,8 +139,9 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
               key={stars}
               type="button"
               onClick={() => toggleParam("minRating", String(stars))}
+              aria-pressed={activeMinRating === String(stars)}
               className={clsx(
-                "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+                "flex items-center gap-2 rounded-md px-2 py-2 text-sm lg:py-1.5",
                 activeMinRating === String(stars) ? "bg-brand-50" : "hover:bg-slate-50",
               )}
             >
@@ -153,7 +153,7 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
       </FilterGroup>
 
       <FilterGroup title="Availability">
-        <label className="flex items-center gap-2 px-2 py-1.5 text-sm text-slate-600">
+        <label className="flex items-center gap-2 px-2 py-2 text-sm text-slate-600 lg:py-1.5">
           <input
             type="checkbox"
             checked={inStockOnly}
@@ -162,7 +162,7 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
           />
           In stock only
         </label>
-        <label className="flex items-center gap-2 px-2 py-1.5 text-sm text-slate-600">
+        <label className="flex items-center gap-2 px-2 py-2 text-sm text-slate-600 lg:py-1.5">
           <input
             type="checkbox"
             checked={onSaleOnly}
@@ -172,6 +172,29 @@ export function ProductFilters({ categories, brands }: ProductFiltersProps) {
           On sale only
         </label>
       </FilterGroup>
+    </div>
+  );
+}
+
+/** Desktop sidebar. Mobile gets the same controls via MobileFilterBar. */
+export function ProductFilters({ categories, brands }: ProductFiltersProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  return (
+    <aside className="hidden w-64 shrink-0 flex-col gap-6 self-start rounded-md bg-white p-4 shadow-card lg:flex" aria-label="Product filters">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h2 className="text-base font-bold text-slate-900">Filters</h2>
+        <button
+          type="button"
+          onClick={() => router.push(pathname)}
+          className="text-xs font-bold uppercase tracking-wide text-brand-600 hover:underline"
+        >
+          Clear all
+        </button>
+      </div>
+
+      <ProductFilterControls categories={categories} brands={brands} />
     </aside>
   );
 }

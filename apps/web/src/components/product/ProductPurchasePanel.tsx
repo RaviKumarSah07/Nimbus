@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ShoppingBag, Zap } from "lucide-react";
@@ -22,6 +22,20 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
   const [isBuyingNow, setIsBuyingNow] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // On a phone the buy buttons scroll out of view within a screen or two of
+  // reading, so they reappear in a fixed bar once they've left the viewport.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [areActionsVisible, setAreActionsVisible] = useState(true);
+
+  useEffect(() => {
+    const node = actionsRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(([entry]) => setAreActionsVisible(entry.isIntersecting), { rootMargin: "-8px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const selectedVariant =
     product.variants.find((v) => (!sizes.length || v.size === selectedSize) && (!colors.length || v.color === selectedColor)) ??
@@ -138,7 +152,7 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
         <WishlistButton productId={product.id} variant="inline" />
       </div>
 
-      <div className="flex gap-3">
+      <div ref={actionsRef} className="flex gap-3">
         <Button variant="cta-outline" size="lg" onClick={handleAddToCart} disabled={!inStock} isLoading={isLoading} className="flex-1">
           {justAdded ? <Check className="h-4 w-4" aria-hidden="true" /> : <ShoppingBag className="h-4 w-4" aria-hidden="true" />}
           {justAdded ? "Added" : "Add to cart"}
@@ -157,6 +171,21 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
         <p className="text-sm text-emerald-600">
           Added to your cart. <Link href="/cart" className="underline">View cart</Link>
         </p>
+      )}
+
+      {!areActionsVisible && (
+        <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-2px_8px_rgba(20,30,60,0.08)] lg:hidden">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs text-slate-500">{product.name}</p>
+            <p className="text-lg font-bold text-slate-900">{formatCurrency(price, product.currency)}</p>
+          </div>
+          <Button variant="cta-outline" onClick={handleAddToCart} disabled={!inStock} isLoading={isLoading}>
+            {justAdded ? "Added" : "Add"}
+          </Button>
+          <Button variant="cta" onClick={handleBuyNow} disabled={!inStock} isLoading={isBuyingNow}>
+            Buy now
+          </Button>
+        </div>
       )}
     </div>
   );

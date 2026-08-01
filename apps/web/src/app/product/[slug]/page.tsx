@@ -60,7 +60,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   };
 
   return (
-    <Container className="flex flex-col gap-4 py-4">
+    <Container className="flex flex-col gap-4 py-4 pb-24 lg:pb-4">
       {/* eslint-disable-next-line react/no-danger */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <RecentlyViewedTracker productId={product.id} />
