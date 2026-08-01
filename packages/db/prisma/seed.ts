@@ -3,9 +3,46 @@ import { PrismaClient, Role, CouponType } from "../generated/client";
 
 const prisma = new PrismaClient();
 
-function placeholderImage(seed: string, w = 800, h = 800) {
-  return `https://picsum.photos/seed/${seed}/${w}/${h}`;
+/**
+ * Seed imagery is keyed to the actual product, not randomised. The previous
+ * random-photo service produced a catalogue where a laptop listing showed a
+ * beach and a shoe listing showed a skyline, which made the whole storefront
+ * read as fake. These are real photos of the real product type.
+ */
+function image(photoId: string, w = 900, h = 900) {
+  return `https://images.unsplash.com/${photoId}?auto=format&fit=crop&w=${w}&h=${h}&q=80`;
 }
+
+function wideImage(photoId: string, w = 1600, h = 500) {
+  return image(photoId, w, h);
+}
+
+/** Three shots per product, all of that product's category. */
+const PRODUCT_PHOTOS: Record<string, [string, string, string]> = {
+  "aerobook-pro-14": ["photo-1517336714731-489689fd1ca8", "photo-1541807084-5c52b6b3adef", "photo-1496181133206-80ce9b88a853"],
+  "aerobook-air-13": ["photo-1588872657578-7efd1f1555ed", "photo-1611186871348-b1ce696e52c9", "photo-1531297484001-80022131f5a1"],
+  "galaxywave-s24": ["photo-1511707171634-5f897ff02aa9", "photo-1592750475338-74b7b21085ab", "photo-1598327105666-5b89351aff97"],
+  "sonique-anc-headphones": ["photo-1505740420928-5e560c06d30e", "photo-1583394838336-acd977736f90", "photo-1546435770-a3e426bf472b"],
+  "pulse-mini-speaker": ["photo-1608043152269-423dbba4e7e1", "photo-1589003077984-894e133dabab", "photo-1545454675-3531b543be5d"],
+  "galaxywave-buds-pro": ["photo-1590658268037-6bf12165a8df", "photo-1606220945770-b5b6c2c55bf1", "photo-1572569511254-d8f925fe2cbb"],
+  "runner-elite-trainers": ["photo-1542291026-7eec264c27ff", "photo-1595950653106-6c9ebd614d3a", "photo-1600185365483-26d7a4cc7519"],
+  "streetform-track-jacket": ["photo-1551028719-00167b16eac5", "photo-1556821840-3a63f95609a7", "photo-1620799140408-edc6dcb6d633"],
+  "classic-oxford-shirt": ["photo-1596755094514-f87e34085b2c", "photo-1602810318383-e386cc2a3ccf", "photo-1594938298603-c8148c4dae35"],
+  "nordic-oak-coffee-table": ["photo-1611486212355-d276af4581c0", "photo-1493663284031-b7e3aefcae8e", "photo-1524758631624-e2822e304c36"],
+  "lumaglow-desk-lamp": ["photo-1507473885765-e6ed057f782c", "photo-1534073828943-f801091bb18c", "photo-1513506003901-1e6a229e2d15"],
+  "trailblaze-40l-backpack": ["photo-1553062407-98eeb64c6a62", "photo-1622560480605-d83c853bc5c3", "photo-1547949003-9792a18a2601"],
+};
+
+const CATEGORY_PHOTOS = {
+  electronics: "photo-1498049794561-7780e7231661",
+  laptops: "photo-1496181133206-80ce9b88a853",
+  smartphones: "photo-1511707171634-5f897ff02aa9",
+  audio: "photo-1505740420928-5e560c06d30e",
+  fashion: "photo-1445205170230-053b83016050",
+  mens: "photo-1489987707025-afc232f7ea0f",
+  shoes: "photo-1549298916-b41d501d3772",
+  home: "photo-1556911220-bff31c812dba",
+} as const;
 
 async function main() {
   console.log("Seeding database...");
@@ -65,47 +102,51 @@ async function main() {
   }
 
   // ---------- Categories ----------
+  // imageUrl is included in `update` as well as `create` so re-running the
+  // seed over an existing database actually refreshes the artwork.
+  const categoryTile = (photoId: string) => image(photoId, 600, 400);
+
   const electronics = await prisma.category.upsert({
     where: { slug: "electronics" },
-    update: {},
-    create: { name: "Electronics", slug: "electronics", description: "Phones, laptops, audio and more.", imageUrl: placeholderImage("cat-electronics", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.electronics) },
+    create: { name: "Electronics", slug: "electronics", description: "Phones, laptops, audio and more.", imageUrl: categoryTile(CATEGORY_PHOTOS.electronics) },
   });
   const laptops = await prisma.category.upsert({
     where: { slug: "laptops" },
-    update: {},
-    create: { name: "Laptops", slug: "laptops", parentId: electronics.id, imageUrl: placeholderImage("cat-laptops", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.laptops) },
+    create: { name: "Laptops", slug: "laptops", parentId: electronics.id, imageUrl: categoryTile(CATEGORY_PHOTOS.laptops) },
   });
   const smartphones = await prisma.category.upsert({
     where: { slug: "smartphones" },
-    update: {},
-    create: { name: "Smartphones", slug: "smartphones", parentId: electronics.id, imageUrl: placeholderImage("cat-phones", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.smartphones) },
+    create: { name: "Smartphones", slug: "smartphones", parentId: electronics.id, imageUrl: categoryTile(CATEGORY_PHOTOS.smartphones) },
   });
   const audio = await prisma.category.upsert({
     where: { slug: "audio" },
-    update: {},
-    create: { name: "Audio", slug: "audio", parentId: electronics.id, imageUrl: placeholderImage("cat-audio", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.audio) },
+    create: { name: "Audio", slug: "audio", parentId: electronics.id, imageUrl: categoryTile(CATEGORY_PHOTOS.audio) },
   });
 
   const fashion = await prisma.category.upsert({
     where: { slug: "fashion" },
-    update: {},
-    create: { name: "Fashion", slug: "fashion", description: "Apparel and footwear for every day.", imageUrl: placeholderImage("cat-fashion", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.fashion) },
+    create: { name: "Fashion", slug: "fashion", description: "Apparel and footwear for every day.", imageUrl: categoryTile(CATEGORY_PHOTOS.fashion) },
   });
   const mensClothing = await prisma.category.upsert({
     where: { slug: "mens-clothing" },
-    update: {},
-    create: { name: "Men's Clothing", slug: "mens-clothing", parentId: fashion.id, imageUrl: placeholderImage("cat-mens", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.mens) },
+    create: { name: "Men's Clothing", slug: "mens-clothing", parentId: fashion.id, imageUrl: categoryTile(CATEGORY_PHOTOS.mens) },
   });
   const shoes = await prisma.category.upsert({
     where: { slug: "shoes" },
-    update: {},
-    create: { name: "Shoes", slug: "shoes", parentId: fashion.id, imageUrl: placeholderImage("cat-shoes", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.shoes) },
+    create: { name: "Shoes", slug: "shoes", parentId: fashion.id, imageUrl: categoryTile(CATEGORY_PHOTOS.shoes) },
   });
 
   const home = await prisma.category.upsert({
     where: { slug: "home-kitchen" },
-    update: {},
-    create: { name: "Home & Kitchen", slug: "home-kitchen", description: "Furniture and essentials for the home.", imageUrl: placeholderImage("cat-home", 600, 400) },
+    update: { imageUrl: categoryTile(CATEGORY_PHOTOS.home) },
+    create: { name: "Home & Kitchen", slug: "home-kitchen", description: "Furniture and essentials for the home.", imageUrl: categoryTile(CATEGORY_PHOTOS.home) },
   });
 
   // ---------- Products ----------
@@ -238,7 +279,7 @@ async function main() {
       name: "TrailBlaze 40L Backpack",
       slug: "trailblaze-40l-backpack",
       description: "Weatherproof 40-liter hiking backpack with a ventilated back panel and integrated rain cover.",
-      categoryId: home.id,
+      categoryId: fashion.id,
       brandId: brands["Generic Goods"],
       basePrice: 89.99,
       variants: [
@@ -289,6 +330,15 @@ async function main() {
 
   const createdProducts = [];
   for (const p of products) {
+    const photos = PRODUCT_PHOTOS[p.slug];
+    if (!photos) throw new Error(`No seed photos mapped for product "${p.slug}"`);
+
+    const imageRows = photos.map((photoId, i) => ({
+      url: image(photoId),
+      altText: `${p.name} — photo ${i + 1}`,
+      position: i,
+    }));
+
     const product = await prisma.product.upsert({
       where: { slug: p.slug },
       update: {},
@@ -301,19 +351,20 @@ async function main() {
         basePrice: p.basePrice,
         compareAtPrice: p.compareAtPrice,
         isFeatured: p.isFeatured ?? false,
-        images: {
-          create: [0, 1, 2].map((i) => ({
-            url: placeholderImage(`${p.slug}-${i}`),
-            altText: `${p.name} photo ${i + 1}`,
-            position: i,
-          })),
-        },
-        variants: {
-          create: p.variants,
-        },
+        images: { create: imageRows },
+        variants: { create: p.variants },
       },
       include: { variants: true },
     });
+
+    // Products already in the database keep their own rows on upsert, so their
+    // artwork is replaced explicitly - otherwise re-seeding an existing store
+    // would leave the old mismatched photos in place.
+    await prisma.productImage.deleteMany({ where: { productId: product.id } });
+    await prisma.productImage.createMany({
+      data: imageRows.map((row) => ({ ...row, productId: product.id })),
+    });
+
     createdProducts.push(product);
   }
 
@@ -382,22 +433,30 @@ async function main() {
   });
 
   // ---------- Banners ----------
+  // Banner has no natural unique key, so re-seeding replaces the set outright
+  // rather than stacking duplicates into the carousel.
+  await prisma.banner.deleteMany({});
   await prisma.banner.createMany({
     data: [
       {
         title: "Summer Tech Sale — up to 20% off audio",
-        imageUrl: placeholderImage("banner-audio-sale", 1600, 500),
+        imageUrl: wideImage("photo-1524678606370-a47ad25cb82a"),
         linkUrl: "/products?category=audio",
         position: 0,
       },
       {
         title: "New arrivals in Fashion",
-        imageUrl: placeholderImage("banner-fashion", 1600, 500),
+        imageUrl: wideImage("photo-1483985988355-763728e1935b"),
         linkUrl: "/products?category=fashion",
         position: 1,
       },
+      {
+        title: "Laptops built to travel — from $999",
+        imageUrl: wideImage("photo-1498049794561-7780e7231661"),
+        linkUrl: "/products?category=laptops",
+        position: 2,
+      },
     ],
-    skipDuplicates: true,
   });
 
   console.log("Seed complete.");
