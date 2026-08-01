@@ -4,14 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { useGetOrderConfirmationQuery } from "../../store/api/ordersApi";
+import { useAppSelector } from "../../store/hooks";
 import { Spinner } from "../ui/Spinner";
 import { Button } from "../ui/Button";
 import { formatCurrency } from "../../lib/formatCurrency";
 
 export function OrderReceipt({ orderId }: { orderId: string }) {
-  const { data: order, isLoading, error } = useGetOrderConfirmationQuery(orderId);
+  // Coming back from the payment gateway is a cold page load, so the session
+  // is still being restored. Firing this now would 401 and kick off a second,
+  // competing token refresh - wait for bootstrap to settle either way.
+  const authStatus = useAppSelector((state) => state.auth.status);
+  const isRestoringSession = authStatus === "idle" || authStatus === "loading";
 
-  if (isLoading) return <Spinner label="Loading your order" />;
+  const { data: order, isLoading, error } = useGetOrderConfirmationQuery(orderId, { skip: isRestoringSession });
+
+  if (isRestoringSession || isLoading) return <Spinner label="Loading your order" />;
   if (error || !order) return <p className="text-sm text-red-600">We couldn&apos;t find that order.</p>;
 
   return (

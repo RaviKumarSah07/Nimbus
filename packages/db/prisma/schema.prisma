@@ -90,6 +90,11 @@ model RefreshToken {
   ip        String?
   expiresAt DateTime
   revokedAt DateTime?
+  // Set only when the token was consumed by a normal rotation, as opposed to
+  // being revoked by logout, a password change, or reuse detection. Lets the
+  // refresh endpoint forgive a brief client-side rotation race without also
+  // forgiving a token that was deliberately killed.
+  rotatedAt DateTime?
   createdAt DateTime  @default(now())
 
   @@index([userId])

@@ -83,4 +83,53 @@ describe("auth flows", () => {
     const afterLogout = await agent.post("/api/auth/refresh");
     expect(afterLogout.status).toBe(401);
   });
+
+  it("survives two refreshes racing with the same cookie instead of killing the session", async () => {
+    // Returning from the payment gateway is a cold page load: the session
+    // restore and an authenticated request can both refresh with the same
+    // cookie. That must not look like token theft and sign the user out.
+    const register = await request(app)
+      .post("/api/auth/register")
+      .send({ name: "Annie Easley", email: "annie@example.com", password: "Passw0rd!" });
+
+    const cookie = register.headers["set-cookie"];
+    expect(cookie).toBeDefined();
+
+    const [first, second] = await Promise.all([
+      request(app).post("/api/auth/refresh").set("Cookie", cookie),
+      request(app).post("/api/auth/refresh").set("Cookie", cookie),
+    ]);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+
+    // The session has to still be usable afterwards, on the newest cookie.
+    const latest = (second.headers["set-cookie"] ?? first.headers["set-cookie"]) as string[];
+    const afterRace = await request(app).post("/api/auth/refresh").set("Cookie", latest);
+    expect(afterRace.status).toBe(200);
+  });
+
+  it("still treats a genuinely stale token replay as theft and revokes every session", async () => {
+    const register = await request(app)
+      .post("/api/auth/register")
+      .send({ name: "Dorothy Vaughan", email: "dorothy@example.com", password: "Passw0rd!" });
+    const stolenCookie = register.headers["set-cookie"];
+
+    const rotated = await request(app).post("/api/auth/refresh").set("Cookie", stolenCookie);
+    expect(rotated.status).toBe(200);
+
+    // Age the rotation past the grace window so the replay below is no
+    // longer explainable as a client race.
+    await prisma.refreshToken.updateMany({
+      where: { rotatedAt: { not: null } },
+      data: { rotatedAt: new Date(Date.now() - 60_000), revokedAt: new Date(Date.now() - 60_000) },
+    });
+
+    const replay = await request(app).post("/api/auth/refresh").set("Cookie", stolenCookie);
+    expect(replay.status).toBe(401);
+
+    // The alarm must take the legitimate session down with it.
+    const legitimate = await request(app).post("/api/auth/refresh").set("Cookie", rotated.headers["set-cookie"]);
+    expect(legitimate.status).toBe(401);
+  });
 });

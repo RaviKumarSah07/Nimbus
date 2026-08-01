@@ -49,5 +49,13 @@ export function createRateLimiter({ windowMs, max, keyPrefix }: RateLimitOptions
 // for credential stuffing / abuse, so they get much tighter windows than
 // general browsing traffic.
 export const authRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 20, keyPrefix: "auth" });
+// Refresh deliberately sits well above the credential endpoints. It isn't a
+// guessing target - it presents an opaque token that reuse detection already
+// guards - but it fires on every cold page load and whenever the 15-minute
+// access token lapses, so an ordinary shopping session reaches double digits
+// on its own. Sharing the credential limit meant a browsing user could spend
+// it and have their next refresh 429, which the client reads as a dead
+// session: signed out mid-purchase for doing nothing wrong.
+export const refreshRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 120, keyPrefix: "refresh" });
 export const checkoutRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: "checkout" });
 export const generalApiRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 600, keyPrefix: "general" });

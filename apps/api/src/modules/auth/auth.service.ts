@@ -12,6 +12,16 @@ import { toPublicUser, type IssuedTokens, type PublicUser, type RequestMeta } fr
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = 60;
 const BCRYPT_COST = 12;
 
+/**
+ * Refresh tokens are single-use, but a browser can legitimately present the
+ * same cookie twice at once - e.g. a cold page load restoring the session
+ * while an authenticated request 401s and refreshes in parallel. Treating
+ * that race as theft would sign the user out of every device, so a replay
+ * this soon after rotation is forgiven and simply rotated again. A replay
+ * after the window is still treated as a stolen token.
+ */
+const REFRESH_REUSE_GRACE_MS = 30_000;
+
 async function issueTokens(userId: string, role: PublicUser["role"], meta: RequestMeta): Promise<IssuedTokens> {
   const accessToken = signAccessToken({ sub: userId, role });
 
@@ -79,24 +89,38 @@ export async function rotateRefreshToken(rawToken: string, meta: RequestMeta) {
     throw ApiError.unauthorized("Session expired, please log in again");
   }
 
-  if (existing.revokedAt || existing.expiresAt < new Date()) {
-    // Reuse of an already-rotated or expired token is a strong signal the
-    // token was stolen. Revoke every session for this user as a precaution.
-    if (existing.revokedAt) {
+  if (existing.expiresAt < new Date()) {
+    throw ApiError.unauthorized("Session expired, please log in again");
+  }
+
+  if (existing.revokedAt) {
+    // Only a token retired by rotation can be a benign race. One killed by
+    // logout, a password change, or an earlier reuse alarm has no rotatedAt
+    // and must always fail, however recently it happened.
+    const replayedAfterMs = existing.rotatedAt ? Date.now() - existing.rotatedAt.getTime() : Infinity;
+
+    if (replayedAfterMs > REFRESH_REUSE_GRACE_MS) {
       logger.warn("Refresh token reuse detected - revoking all sessions", { userId: existing.userId });
       await prisma.refreshToken.updateMany({
         where: { userId: existing.userId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      throw ApiError.unauthorized("Session expired, please log in again");
     }
-    throw ApiError.unauthorized("Session expired, please log in again");
+
+    logger.info("Refresh token replayed within the grace window - treating as a client race", { userId: existing.userId });
   }
 
   if (!existing.user.isActive || existing.user.deletedAt) {
     throw ApiError.forbidden("This account has been deactivated");
   }
 
-  await prisma.refreshToken.update({ where: { id: existing.id }, data: { revokedAt: new Date() } });
+  // Keep the original timestamps so repeated replays can't slide the grace
+  // window forward indefinitely.
+  if (!existing.revokedAt) {
+    const now = new Date();
+    await prisma.refreshToken.update({ where: { id: existing.id }, data: { revokedAt: now, rotatedAt: now } });
+  }
 
   const tokens = await issueTokens(existing.userId, existing.user.role, meta);
   return { user: toPublicUser(existing.user), ...tokens };
