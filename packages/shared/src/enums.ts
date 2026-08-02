@@ -11,8 +11,15 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 // The one allowed-transitions table, imported by both the API (to enforce
 // it) and the admin UI (to know which buttons to show) so the two can never
 // drift into disagreeing about what move is legal.
+//
+// PAID is deliberately unreachable from here: this app has no Cash on
+// Delivery, so the only ways money is ever actually confirmed are the
+// Stripe webhook and the mock gateway's immediate-pay path (both call
+// markOrderPaid directly, bypassing this table entirely). An admin-facing
+// "mark as paid" button would let an order be treated as paid - stock
+// decremented, revenue counted - without a real payment ever happening.
 export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  PENDING: ["PAID", "CANCELLED"],
+  PENDING: ["CANCELLED"],
   PAID: ["PROCESSING", "CANCELLED"],
   PROCESSING: ["SHIPPED", "CANCELLED"],
   SHIPPED: ["DELIVERED"],

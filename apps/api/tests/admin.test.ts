@@ -110,6 +110,40 @@ describe("order status transitions", () => {
       .send({ status: "DELIVERED" });
     expect(toDelivered.status).toBe(200);
   });
+
+  it("rejects a manual PAID transition - there's no Cash on Delivery, so only the payment gateway can ever mark an order paid", async () => {
+    const { password } = await createTestUser({ role: Role.ADMIN, email: "no-manual-pay-admin@test.local" });
+    const adminToken = await loginAs("no-manual-pay-admin@test.local", password);
+
+    // Bypasses checkout entirely - the mock gateway always pays instantly,
+    // so a genuinely PENDING order can only be produced directly like this.
+    const pendingOrder = await prisma.order.create({
+      data: {
+        orderNumber: `ORD-TEST-${Date.now()}`,
+        status: "PENDING",
+        paymentStatus: "UNPAID",
+        subtotal: 20,
+        shippingTotal: 0,
+        taxTotal: 0,
+        grandTotal: 20,
+        shippingAddress: { fullName: "Pending Tester", phone: "5551234567", line1: "1 Test Way", city: "Austin", state: "TX", postalCode: "73301", country: "US" },
+        billingAddress: { fullName: "Pending Tester", phone: "5551234567", line1: "1 Test Way", city: "Austin", state: "TX", postalCode: "73301", country: "US" },
+      },
+    });
+
+    const markPaid = await request(app)
+      .patch(`/api/admin/orders/${pendingOrder.id}/status`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ status: "PAID" });
+    expect(markPaid.status).toBe(400);
+
+    // Cancelling a never-paid order is still legitimate admin housekeeping.
+    const cancel = await request(app)
+      .patch(`/api/admin/orders/${pendingOrder.id}/status`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ status: "CANCELLED" });
+    expect(cancel.status).toBe(200);
+  });
 });
 
 describe("order notifications", () => {
