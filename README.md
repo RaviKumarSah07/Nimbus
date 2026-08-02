@@ -43,12 +43,13 @@ Most portfolio e-commerce projects are a product list, a cart, and a fake checko
 ## Feature list
 
 **Customer-facing store**
-- Home page: hero banners, category tiles, featured/new-arrival/trending shelves
-- Product listing: search, filter (category incl. subcategories, brand, price range, rating, stock, sale), 5 sort modes, pagination
-- Product detail: image gallery with zoom lightbox, variant (size/color) selection, live stock, rating breakdown, related products, recently-viewed (localStorage), Product JSON-LD for SEO
+- Home page: auto-rotating hero carousel, category tiles, a deal-of-the-day panel, a value-props strip, promo banners, brand strip, category showcase, storefront stats, and featured/new-arrival/trending shelves - snap-scrolling rails on mobile so it stays browsable instead of one long column
+- Product listing: typo-tolerant search that degrades gracefully instead of ever going empty (see [Architecture](#architecture)), filter (category incl. subcategories, brand, price range, rating, stock, sale), 5 sort modes, pagination; on mobile, filters and sort live behind a bottom sheet reached from a sticky bar, so the product grid is the first thing on screen instead of a wall of filter controls
+- Product detail: image gallery with zoom lightbox, variant (size/color) selection, live stock, rating breakdown, related products, recently-viewed (localStorage), Product JSON-LD for SEO; a sticky Add-to-cart/Buy-now bar reappears on mobile once the real buttons scroll out of view
 - Cart: persistent for logged-in users, a localStorage-token guest cart that survives login via server-side merge, live price/stock reconciliation on every read
 - Checkout: guest or logged-in, coupon preview, server-computed subtotal/discount/shipping/tax/total, Stripe Checkout redirect
-- Orders: invoice-style confirmation (works for guests via an unguessable order id), order history, status tracking timeline, cancellation, per-item return requests
+- Orders: invoice-style confirmation (works for guests via an unguessable order id), order history, a full fulfillment lifecycle (Pending → Paid → Processing → Shipped, with an optional tracking number/courier → Delivered), a status timeline, cancellation, per-item return requests
+- Notifications: a bell in the navbar with unread count and mark-read, backed by real persisted rows (not just a log line) - a customer is notified at every order status change, tracking number included in the shipped message
 - Reviews: one per user per product, auto-flagged verified-purchase, rating aggregate recomputed on write
 - Wishlist: heart-toggle on cards and PDP
 
@@ -56,20 +57,22 @@ Most portfolio e-commerce projects are a product list, a cart, and a fake checko
 - Register/login/logout, forgot/reset password, change password, profile edit, address book with single-default enforcement
 
 **Admin console** (`/admin`, role-gated)
-- Dashboard: revenue/orders/customers/low-stock stat tiles, a hand-built SVG revenue chart, order-status breakdown, recent orders
+- Dashboard: revenue broken into gross / confirmed (delivered) / pending (paid, still in transit) / refunded - not one number that conflates money collected with money actually earned - plus orders/customers/low-stock stat tiles, a hand-built SVG revenue chart, order-status breakdown, recent orders
 - Products: full CRUD with dynamic variant and image rows
 - Categories: tree view with subcategories, inline CRUD
-- Orders: status-filterable table, detail view with the same transition rules the backend enforces
+- Orders: status-filterable table, detail view with the same transition rules the backend enforces (the allowed-transitions table lives once in `packages/shared`, imported by both), tracking number/courier capture on the Shipped transition
 - Users: role changes, activate/deactivate (with a guard against self-lockout)
 - Coupons and banners: CRUD with active/inactive toggling
+- Notified (same bell as the customer view, since the admin console sits under the same navbar) when a customer places or cancels an order
 
 **Engineering depth**
 - Layered backend (routes/controllers/services), zod validation shared between frontend and backend from one `@ecommerce/shared` package
 - RBAC middleware, audit log on every admin mutation, soft delete on Product/Category/User
 - Inventory decrements on payment confirmation (not on checkout start), restocks on cancellation/return
-- Rate limiting (tiered: auth/checkout stricter than general browsing), helmet, CORS allowlist
+- Rate limiting (tiered: auth/checkout stricter than general browsing; token refresh has its own higher ceiling since it fires on every page load, not just a deliberate auth attempt), helmet, CORS allowlist
 - Redis-backed product-list caching with tag-based invalidation on admin writes
 - Stripe webhook signature verification against the raw request body
+- Typo-tolerant search via Postgres `pg_trgm`, with a popularity fallback when even a fuzzy match finds nothing - no separate search service required
 
 ## Architecture
 
@@ -87,13 +90,15 @@ Most portfolio e-commerce projects are a product list, a cart, and a fake checko
 
 - **Server Components fetch directly from the API** for public, SEO-critical pages (home, listing, product detail) - no caching layer duplicated on the frontend, ISR-style `fetch` revalidation instead.
 - **Client Components + RTK Query** power everything behind a login (cart, checkout, account, admin) - a `baseQueryWithReauth` wrapper transparently exchanges an expired access token for a new one via the httpOnly refresh cookie and retries the original request once.
-- **The access token lives only in memory** (Redux state), never localStorage; a silent-refresh call on app mount exchanges the refresh cookie for a fresh access token after a hard reload.
+- **The access token lives only in memory** (Redux state), never localStorage; a silent-refresh call on app mount exchanges the refresh cookie for a fresh access token after a hard reload. A shared in-flight refresh promise, plus a short server-side grace window on token reuse, absorbs the race that a cold page load can cause (e.g. returning from a payment redirect) without misreading it as token theft.
 - **Checkout totals are computed exactly once, server-side** (`computeOrderTotals`), from the reconciled cart - the client never supplies a price the server trusts.
 - **Payment confirmation is webhook-driven**, never inferred from the client's redirect back to the success page - the order is marked paid, stock decremented, and the cart cleared inside `markOrderPaid`, which is idempotent because Stripe can redeliver webhooks.
+- **Search degrades instead of going empty**: a broadened substring match (name, description, brand, category) runs first; if that finds nothing, a Postgres `pg_trgm` trigram-similarity query catches typos; if even that finds nothing, the same category/brand/price filters fall back to showing popular products instead of a blank grid. Each tier still respects whatever filters the user set, and the UI states plainly which tier produced the results (the same "no exact matches, here's what's close" pattern as Amazon/Flipkart).
+- **Order fulfillment and revenue are one flow, not two**: reversing a paid order (cancel or return) restocks inventory *and* moves `paymentStatus` to `REFUNDED` in the same transaction, so the admin dashboard's revenue breakdown reconciles exactly (gross = confirmed + pending) instead of a reversed sale inflating "revenue" forever.
 
 ## Database schema
 
-Postgres via Prisma (`packages/db/prisma/schema.prisma`), 19 models:
+Postgres via Prisma (`packages/db/prisma/schema.prisma`), 22 models:
 
 | Domain | Models |
 |---|---|
@@ -103,9 +108,10 @@ Postgres via Prisma (`packages/db/prisma/schema.prisma`), 19 models:
 | Cart | `Cart`, `CartItem` |
 | Promotions | `Coupon`, `Banner` |
 | Orders | `Order`, `OrderItem` (immutable purchase snapshot), `OrderStatusHistory`, `ReturnRequest` |
+| Notifications | `Notification` |
 | Ops | `AuditLog` |
 
-Notable design choices: money fields are `Decimal`, never `Float`; `OrderItem` snapshots product name/price/image at purchase time so a later product edit can never rewrite history; `Product.avgRating`/`ratingCount` are denormalized and recomputed from `Review` on every write (traded for read-speed on the most-viewed page in the app).
+Notable design choices: money fields are `Decimal`, never `Float`; `OrderItem` snapshots product name/price/image at purchase time so a later product edit can never rewrite history; `Product.avgRating`/`ratingCount` are denormalized and recomputed from `Review` on every write (traded for read-speed on the most-viewed page in the app); `Product.name` carries a GIN trigram index (`pg_trgm`) for typo-tolerant search without standing up a separate search service; a paid order's `paymentStatus` moves to `REFUNDED` (not just `status` to `CANCELLED`/`RETURNED`) the moment it's reversed, so revenue reporting reconciles instead of counting a reversed sale forever.
 
 ## API reference
 
@@ -125,6 +131,7 @@ All routes are namespaced under `/api`. Full request/response shapes live in `pa
 | `orders` | confirmation (public by id), list mine, detail, cancel, return request |
 | `reviews` | list by product, create |
 | `wishlist` | list, ids, add, remove |
+| `notifications` | list mine (with unread count), mark one read, mark all read |
 | `webhooks` | Stripe (raw body, signature-verified) |
 | `admin/*` | dashboard stats; products/categories/brands/banners/coupons CRUD; orders list/detail/status/returns; users list/role/status; upload signature |
 
@@ -180,13 +187,13 @@ npm run lint                        # ESLint, both apps
 npm run typecheck                   # every workspace
 ```
 
-The test suite creates its own database (`ecommerce_test_db`) and truncates it between files; see `apps/api/tests/setup.ts` for the one-time setup. Covers: registration/login/refresh-rotation/enumeration-safe errors, cart math and stock enforcement, coupon-gated checkout end-to-end (stock decrement, cart clearing), admin RBAC (401/403/200, self-role-change guard), and the order status transition table.
+The test suite creates its own database (`ecommerce_test_db`) and truncates it between files; see `apps/api/tests/setup.ts` for the one-time setup. Covers: registration/login/refresh-rotation/enumeration-safe errors, the refresh-token race a payment-return page load can cause (forgiven within a grace window, still revoked if genuinely replayed later), cart math and stock enforcement, coupon-gated checkout end-to-end (stock decrement, cart clearing), admin RBAC (401/403/200, self-role-change guard), the full order status transition table (including the Processing step and tracking-number capture), notification fan-out on order placed/cancelled, revenue reconciliation after a cancellation, and product search's exact/fuzzy/suggested fallback tiers.
 
 ## Security
 
-- Passwords hashed with bcrypt (cost 12); access tokens are short-lived and stateless; refresh tokens are opaque, hashed at rest, rotated on every use, with reuse-detection that revokes all of a user's sessions if a stale token is replayed
+- Passwords hashed with bcrypt (cost 12); access tokens are short-lived and stateless; refresh tokens are opaque, hashed at rest, rotated on every use, with reuse-detection that revokes all of a user's sessions if a stale token is replayed - except within a short grace window that forgives the legitimate race a cold page load can cause (e.g. two tabs, or returning from a payment redirect while a background request is also refreshing), so a real client isn't punished as if it were theft
 - Every request body/query is validated with zod at the API boundary; the same schemas are reused on the frontend
-- helmet, CORS allowlist, tiered rate limiting (auth/checkout stricter than general traffic)
+- helmet, CORS allowlist, tiered rate limiting (login/register/checkout stricter than general traffic; token refresh has its own higher ceiling since an active session reaches double digits on its own)
 - RBAC middleware gates the entire `/api/admin` namespace in one place, not per-route
 - Checkout totals, coupon validity, and stock are always re-derived server-side - never trusted from the client
 - Admin mutations write to an `AuditLog`; Product/Category/User use soft delete (`deletedAt`) rather than hard delete
@@ -208,7 +215,9 @@ Everything in the feature list above is fully working, not mocked. A few things 
 |---|---|
 | Payments | Real Stripe Checkout + webhook when `STRIPE_SECRET_KEY` is set; a mock gateway (no real charge) otherwise |
 | Image upload | Real Cloudinary signed-upload endpoint when configured; admin forms otherwise accept a pasted image URL |
-| Email (password reset, order confirmation) | `NotificationService` interface with a console/log provider wired in; swap in an SMTP/SendGrid/SES implementation without touching call sites |
+| In-app notifications (order placed/processing/shipped/delivered/cancelled) | Real - persisted `Notification` rows, a navbar bell with unread count for both customer and admin, no external provider needed |
+| Email (password reset, order confirmation, notifications) | `NotificationService` interface with a console/log provider wired in; swap in an SMTP/SendGrid/SES implementation without touching call sites |
+| Product search | Real - broadened exact match → `pg_trgm` fuzzy typo-tolerance → popularity fallback; no external search service required |
 | Abandoned cart reminders | Not built - the cart/order data model supports it, but no scheduled job exists yet |
 | Product Q&A | Not built - would extend the `Review` model |
 
@@ -218,5 +227,6 @@ Everything in the feature list above is fully working, not mocked. A few things 
 - Real transactional email provider
 - Stock **reservation** at checkout-session creation (today, stock is checked at checkout and decremented at payment confirmation - a real race window exists between the two, same as most Checkout-Session-based integrations without a holds system)
 - Product Q&A, extending the review data model
-- Full-text search (Postgres `tsvector` or a dedicated search service) in place of `ILIKE`
+- Dedicated search infra (Meilisearch/Algolia/Elasticsearch) or Postgres `tsvector` ranked full-text search, if the catalog ever grows past what broadened-substring + `pg_trgm` fuzzy matching comfortably scales to
+- Real-time notifications (WebSocket/SSE) in place of the current 30s poll
 - Multi-currency / multi-region tax rules in place of the current flat-rate tax
