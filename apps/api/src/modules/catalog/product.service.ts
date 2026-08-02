@@ -1,5 +1,5 @@
 import type { Prisma } from "@ecommerce/db";
-import type { CreateProductInput, ProductQueryInput, UpdateProductInput } from "@ecommerce/shared";
+import type { CreateProductInput, ProductMatchType, ProductQueryInput, UpdateProductInput } from "@ecommerce/shared";
 import { prisma } from "../../lib/prisma";
 import { ApiError } from "../../utils/ApiError";
 import { buildPaginatedResult } from "../../utils/response";
@@ -9,6 +9,17 @@ import { resolveCategoryIdsBySlug } from "./category.service";
 
 const LIST_CACHE_PREFIX = "products:list:";
 const LIST_CACHE_TTL_SECONDS = 60;
+
+// Below this trigram similarity, a "fuzzy" match is no longer a plausible
+// typo of the query - it's just noise. Product names here are short (2-4
+// words), where pg_trgm's own default of 0.3 rejects real typos like
+// "hedphones" -> "headphones"; 0.15 is the looser threshold that catches
+// those while still excluding unrelated products.
+const FUZZY_SIMILARITY_THRESHOLD = 0.15;
+// A "did you mean" list, not a fully paginated result set - if a query is
+// this loosely related to more than 50 products, showing all of them isn't
+// useful, and re-querying for an exact count would need a second raw query.
+const FUZZY_CANDIDATE_LIMIT = 50;
 
 const listItemSelect = {
   id: true,
@@ -49,15 +60,15 @@ function toListItem(product: ProductListRow) {
   };
 }
 
-async function buildWhereClause(query: ProductQueryInput): Promise<Prisma.ProductWhereInput> {
+/**
+ * Everything except the search text: category/brand/price/rating/stock/sale/
+ * featured. Kept separate from text matching so a search fallback (fuzzy or
+ * suggested) still respects filters the user deliberately set - "no exact
+ * results for 'laptop' under $500" should fall back within that price range,
+ * not ignore it.
+ */
+async function buildStructuralWhereClause(query: ProductQueryInput): Promise<Prisma.ProductWhereInput> {
   const where: Prisma.ProductWhereInput = { isActive: true, deletedAt: null };
-
-  if (query.q) {
-    where.OR = [
-      { name: { contains: query.q, mode: "insensitive" } },
-      { description: { contains: query.q, mode: "insensitive" } },
-    ];
-  }
 
   if (query.category) {
     const categoryIds = await resolveCategoryIdsBySlug(query.category);
@@ -96,6 +107,38 @@ async function buildWhereClause(query: ProductQueryInput): Promise<Prisma.Produc
   return where;
 }
 
+/**
+ * Per word rather than the whole phrase, and across brand/category name as
+ * well as the product's own name/description - so "nike shoes" finds a Nike
+ * product filed under Shoes even though neither field contains that exact
+ * phrase, and "electronics" finds everything in that category without it
+ * ever being typed on a single product.
+ */
+function buildTextMatchOr(words: string[]): NonNullable<Prisma.ProductWhereInput["OR"]> {
+  return words.flatMap((word) => [
+    { name: { contains: word, mode: "insensitive" as const } },
+    { description: { contains: word, mode: "insensitive" as const } },
+    { brand: { name: { contains: word, mode: "insensitive" as const } } },
+    { category: { name: { contains: word, mode: "insensitive" as const } } },
+  ]);
+}
+
+function splitSearchWords(q: string): string[] {
+  return q.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+}
+
+/** Ranked candidate ids by typo-distance to `q` - not scoped to the caller's other filters, since that's applied afterward against these specific ids. */
+async function fuzzyMatchProductIds(q: string): Promise<string[]> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "Product"
+    WHERE "isActive" = true AND "deletedAt" IS NULL
+      AND similarity(name, ${q}) > ${FUZZY_SIMILARITY_THRESHOLD}
+    ORDER BY similarity(name, ${q}) DESC
+    LIMIT ${FUZZY_CANDIDATE_LIMIT}
+  `;
+  return rows.map((r) => r.id);
+}
+
 function buildOrderBy(sort: ProductQueryInput["sort"]): Prisma.ProductOrderByWithRelationInput[] {
   switch (sort) {
     case "price_asc":
@@ -113,26 +156,64 @@ function buildOrderBy(sort: ProductQueryInput["sort"]): Prisma.ProductOrderByWit
   }
 }
 
-export async function listProducts(query: ProductQueryInput) {
+type ProductListResult = ReturnType<typeof buildPaginatedResult<ReturnType<typeof toListItem>>> & { matchType: ProductMatchType };
+
+export async function listProducts(query: ProductQueryInput): Promise<ProductListResult> {
   const cacheKey = `${LIST_CACHE_PREFIX}${JSON.stringify(query)}`;
-  const cached = await cacheGet<ReturnType<typeof buildPaginatedResult>>(cacheKey);
+  const cached = await cacheGet<ProductListResult>(cacheKey);
   if (cached) return cached;
 
-  const where = await buildWhereClause(query);
+  const structuralWhere = await buildStructuralWhereClause(query);
   const orderBy = buildOrderBy(query.sort);
 
-  const [rows, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy,
-      skip: (query.page - 1) * query.limit,
-      take: query.limit,
-      select: listItemSelect,
-    }),
+  const where: Prisma.ProductWhereInput = query.q
+    ? { ...structuralWhere, OR: buildTextMatchOr(splitSearchWords(query.q)) }
+    : structuralWhere;
+
+  let [rows, total] = await Promise.all([
+    prisma.product.findMany({ where, orderBy, skip: (query.page - 1) * query.limit, take: query.limit, select: listItemSelect }),
     prisma.product.count({ where }),
   ]);
+  let matchType: ProductMatchType = "exact";
 
-  const result = buildPaginatedResult(rows.map(toListItem), total, query.page, query.limit);
+  // Nothing matched the text at all - try a typo-tolerant match on name,
+  // still honoring the caller's other filters.
+  if (query.q && total === 0) {
+    const fuzzyIds = await fuzzyMatchProductIds(query.q);
+    if (fuzzyIds.length > 0) {
+      const candidates = await prisma.product.findMany({
+        where: { ...structuralWhere, id: { in: fuzzyIds } },
+        select: listItemSelect,
+      });
+      const rank = new Map(fuzzyIds.map((id, i) => [id, i]));
+      candidates.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+      total = candidates.length;
+      rows = candidates.slice((query.page - 1) * query.limit, (query.page - 1) * query.limit + query.limit);
+      matchType = "fuzzy";
+    }
+  }
+
+  // Not even a plausible typo - fall back to whatever else matches the
+  // caller's other filters, in the sort order they actually asked for
+  // (defaults to newest), so the sort pill the UI highlights still
+  // describes what's on screen.
+  if (query.q && total === 0) {
+    const [suggestedRows, suggestedTotal] = await Promise.all([
+      prisma.product.findMany({
+        where: structuralWhere,
+        orderBy,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+        select: listItemSelect,
+      }),
+      prisma.product.count({ where: structuralWhere }),
+    ]);
+    rows = suggestedRows;
+    total = suggestedTotal;
+    matchType = "suggested";
+  }
+
+  const result = { ...buildPaginatedResult(rows.map(toListItem), total, query.page, query.limit), matchType };
   await cacheSet(cacheKey, result, LIST_CACHE_TTL_SECONDS);
   return result;
 }

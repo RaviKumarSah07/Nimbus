@@ -43,6 +43,15 @@ export type ReturnStatus = (typeof RETURN_STATUSES)[number];
 export const PRODUCT_SORT_OPTIONS = ["newest", "price_asc", "price_desc", "rating", "popularity"] as const;
 export type ProductSortOption = (typeof PRODUCT_SORT_OPTIONS)[number];
 
+// How a product listing's results relate to the search text, so the
+// frontend can explain a result set instead of presenting a fuzzy or
+// fallback match as if it were exactly what was typed.
+// - exact: a real substring/word match on name, description, brand, or category
+// - fuzzy: no exact match, but these are typo-distance-close by name (pg_trgm)
+// - suggested: no match at any distance - these are just popular picks
+export const PRODUCT_MATCH_TYPES = ["exact", "fuzzy", "suggested"] as const;
+export type ProductMatchType = (typeof PRODUCT_MATCH_TYPES)[number];
+
 // Order statuses a customer is allowed to request a transition INTO
 // (everything else is admin/system-only, e.g. PAID is set by the Stripe webhook).
 export const CUSTOMER_CANCELLABLE_STATUSES: OrderStatus[] = ["PENDING", "PAID"];

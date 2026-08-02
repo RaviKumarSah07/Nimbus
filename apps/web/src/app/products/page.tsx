@@ -5,6 +5,7 @@ import { Container } from "../../components/ui/Container";
 import { ProductFilters } from "../../components/product/ProductFilters";
 import { MobileFilterBar } from "../../components/product/MobileFilterBar";
 import { ActiveFilterChips } from "../../components/product/ActiveFilterChips";
+import { SearchFallbackNotice } from "../../components/product/SearchFallbackNotice";
 import { SortSelect } from "../../components/product/SortSelect";
 import { ProductGrid } from "../../components/product/ProductGrid";
 import { Pagination } from "../../components/ui/Pagination";
@@ -58,6 +59,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </nav>
 
         <h1 className="mb-3 text-xl font-bold text-slate-900 sm:text-2xl">{activeCategoryName ?? "All products"}</h1>
+
+        {searchParams.q && <SearchFallbackNotice query={searchParams.q} matchType={result.matchType} />}
 
         <ActiveFilterChips categories={categories} brands={brands} />
 

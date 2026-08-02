@@ -2,14 +2,19 @@ import { prisma } from "../../src/lib/prisma";
 import { Role } from "@ecommerce/db";
 import bcrypt from "bcryptjs";
 
-export async function createTestProduct(overrides: { basePrice?: number; stock?: number } = {}) {
+export async function createTestProduct(
+  overrides: { basePrice?: number; stock?: number; name?: string; categoryName?: string } = {},
+) {
   const category = await prisma.category.create({
-    data: { name: "Test Category", slug: `test-category-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` },
+    data: {
+      name: overrides.categoryName ?? "Test Category",
+      slug: `test-category-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    },
   });
 
   const product = await prisma.product.create({
     data: {
-      name: "Test Product",
+      name: overrides.name ?? "Test Product",
       slug: `test-product-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       description: "A product used only in automated tests.",
       categoryId: category.id,

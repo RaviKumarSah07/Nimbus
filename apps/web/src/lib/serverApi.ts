@@ -1,5 +1,7 @@
-import type { PaginatedResult } from "@ecommerce/shared";
+import type { PaginatedResult, ProductMatchType } from "@ecommerce/shared";
 import type { BannerDto, BrandSummary, CategoryNode, ProductDetail, ProductSummary } from "./types";
+
+export type ProductSearchResult = PaginatedResult<ProductSummary> & { matchType: ProductMatchType };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
 
@@ -41,7 +43,7 @@ export async function getBanners(): Promise<BannerDto[]> {
   return (await apiFetch<BannerDto[]>("/banners", { revalidate: 300 })) ?? [];
 }
 
-export async function getProducts(query: Record<string, string | undefined>): Promise<PaginatedResult<ProductSummary>> {
+export async function getProducts(query: Record<string, string | undefined>): Promise<ProductSearchResult> {
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value) qs.set(key, value);
@@ -51,8 +53,8 @@ export async function getProducts(query: Record<string, string | undefined>): Pr
   // adding Next's time-based fetch cache on top only reintroduces the
   // staleness that layer already solved - confirmed live when a deleted
   // product kept appearing in the listing well past its cache window.
-  const result = await apiFetch<PaginatedResult<ProductSummary>>(`/products?${qs.toString()}`, { tags: ["products"], revalidate: 0 });
-  return result ?? { items: [], meta: { page: 1, limit: 20, total: 0, totalPages: 1 } };
+  const result = await apiFetch<ProductSearchResult>(`/products?${qs.toString()}`, { tags: ["products"], revalidate: 0 });
+  return result ?? { items: [], meta: { page: 1, limit: 20, total: 0, totalPages: 1 }, matchType: "exact" };
 }
 
 export async function getProductBySlug(slug: string): Promise<ProductDetail | null> {
