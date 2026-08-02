@@ -2,7 +2,6 @@ import { createApp } from "./app";
 import { env } from "./config/env";
 import { connectRedis } from "./lib/redis";
 import { prisma } from "./lib/prisma";
-import { attachRealtimeServer } from "./lib/realtime";
 import { logger } from "./utils/logger";
 
 async function main() {
@@ -13,7 +12,6 @@ async function main() {
   const server = app.listen(env.PORT, () => {
     logger.info(`API listening on port ${env.PORT}`, { env: env.NODE_ENV });
   });
-  attachRealtimeServer(server);
 
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}, shutting down gracefully`);

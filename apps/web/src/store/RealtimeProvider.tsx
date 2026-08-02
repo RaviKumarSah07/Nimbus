@@ -5,57 +5,50 @@ import { useAppDispatch, useAppSelector } from "./hooks";
 import { baseApi } from "./api/baseApi";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
-const WS_URL = `${API_BASE_URL.replace(/^http/, "ws").replace(/\/api\/?$/, "")}/api/ws`;
-const RECONNECT_DELAY_MS = 3000;
+const EVENTS_URL = `${API_BASE_URL}/events`;
 
 type CacheTag = Parameters<typeof baseApi.util.invalidateTags>[0][number];
 
 /**
- * One WebSocket connection per authenticated session. The server pushes
- * tiny "these RTK Query tags are stale" signals whenever something changes
- * elsewhere - another tab, another device, an admin action, a payment
- * webhook - and this just forwards them into invalidateTags. RTK Query's
- * existing cache machinery does the rest: no parallel data path, no
+ * One Server-Sent Events connection per authenticated session. The server
+ * pushes tiny "these RTK Query tags are stale" signals whenever something
+ * changes elsewhere - another tab, another device, an admin action, a
+ * payment webhook - and this just forwards them into invalidateTags. RTK
+ * Query's existing cache machinery does the rest: no parallel data path, no
  * payload shapes to keep in sync with the REST API, and every page that
  * already reads through baseApi gets this for free.
+ *
+ * SSE rather than WebSocket: a plain streamed HTTP response, not a protocol
+ * Upgrade, which survives budget/shared reverse proxies far more reliably -
+ * confirmed live, where a WebSocket version of this worked perfectly
+ * locally but failed in production through Render's free-tier edge.
+ * EventSource also reconnects on its own (using the `retry:` hint the
+ * server sends), so there's no hand-rolled reconnect loop to maintain here.
  */
 export function RealtimeProvider() {
   const dispatch = useAppDispatch();
   const accessToken = useAppSelector((state) => state.auth.accessToken);
   const status = useAppSelector((state) => state.auth.status);
-  const socketRef = useRef<WebSocket | null>(null);
+  const sourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated" || !accessToken) return;
 
-    let cancelled = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    const source = new EventSource(`${EVENTS_URL}?token=${encodeURIComponent(accessToken)}`);
+    sourceRef.current = source;
 
-    function connect() {
-      const ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(accessToken!)}`);
-      socketRef.current = ws;
-
-      ws.onmessage = (event) => {
-        try {
-          const payload = JSON.parse(event.data as string) as { tags?: CacheTag[] };
-          if (payload.tags?.length) dispatch(baseApi.util.invalidateTags(payload.tags));
-        } catch {
-          // Malformed frame - drop it rather than crash the handler.
-        }
-      };
-
-      ws.onclose = () => {
-        if (!cancelled) reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
-      };
-    }
-
-    connect();
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data as string) as { tags?: CacheTag[] };
+        if (payload.tags?.length) dispatch(baseApi.util.invalidateTags(payload.tags));
+      } catch {
+        // Malformed frame - drop it rather than crash the handler.
+      }
+    };
 
     return () => {
-      cancelled = true;
-      clearTimeout(reconnectTimer);
-      socketRef.current?.close();
-      socketRef.current = null;
+      source.close();
+      sourceRef.current = null;
     };
   }, [status, accessToken, dispatch]);
 

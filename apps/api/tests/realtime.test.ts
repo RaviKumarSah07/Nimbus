@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import request from "supertest";
-import { WebSocket } from "ws";
+import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { createApp } from "../src/app";
 import { prisma } from "../src/lib/prisma";
-import { attachRealtimeServer } from "../src/lib/realtime";
 import { Role } from "@ecommerce/db";
 import { resetDatabase } from "./helpers/db";
 import { createTestProduct, createTestUser } from "./helpers/fixtures";
@@ -24,43 +23,79 @@ async function loginAs(email: string, password: string) {
   return res.body.data.accessToken as string;
 }
 
-/** Realtime needs a real bound socket to upgrade - supertest's ephemeral per-request server won't do. */
-async function startRealtimeServer() {
+async function startServer() {
   const server = app.listen(0);
-  attachRealtimeServer(server);
   await new Promise<void>((resolve) => server.once("listening", resolve));
   const port = (server.address() as AddressInfo).port;
   return { server, port };
 }
 
-function waitForMessage(ws: WebSocket, timeoutMs = 3000): Promise<{ tags?: string[] }> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Timed out waiting for a WebSocket message")), timeoutMs);
-    ws.once("message", (data) => {
-      clearTimeout(timer);
-      resolve(JSON.parse(data.toString()));
+/** Minimal SSE client for tests: streams the response body and yields parsed "data:" frames one at a time, ignoring comment/keepalive/retry lines. */
+class SseClient {
+  statusCode: number | undefined;
+  private buffer = "";
+  private queue: { tags?: string[] }[] = [];
+  private pending: { resolve: (v: { tags?: string[] }) => void } | null = null;
+  private req: http.ClientRequest;
+
+  constructor(url: string) {
+    this.req = http.get(url, (res) => {
+      this.statusCode = res.statusCode;
+      res.setEncoding("utf8");
+      res.on("data", (chunk: string) => this.onChunk(chunk));
     });
-    ws.once("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
+    this.req.on("error", () => {
+      // Surfaced via waitForMessage/waitForStatus timing out instead.
     });
-  });
+  }
+
+  private onChunk(chunk: string) {
+    this.buffer += chunk;
+    let idx: number;
+    while ((idx = this.buffer.indexOf("\n\n")) !== -1) {
+      const frame = this.buffer.slice(0, idx);
+      this.buffer = this.buffer.slice(idx + 2);
+      const dataLine = frame.split("\n").find((l) => l.startsWith("data: "));
+      if (!dataLine) continue;
+      const parsed = JSON.parse(dataLine.slice("data: ".length)) as { tags?: string[] };
+      if (this.pending) {
+        this.pending.resolve(parsed);
+        this.pending = null;
+      } else {
+        this.queue.push(parsed);
+      }
+    }
+  }
+
+  waitForMessage(timeoutMs = 3000): Promise<{ tags?: string[] }> {
+    const queued = this.queue.shift();
+    if (queued) return Promise.resolve(queued);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Timed out waiting for an SSE message")), timeoutMs);
+      this.pending = { resolve: (v) => { clearTimeout(timer); resolve(v); } };
+    });
+  }
+
+  async waitForStatus(timeoutMs = 3000): Promise<number> {
+    const start = Date.now();
+    while (this.statusCode === undefined) {
+      if (Date.now() - start > timeoutMs) throw new Error("Timed out waiting for a response status");
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return this.statusCode;
+  }
+
+  close() {
+    this.req.destroy();
+  }
 }
 
-function waitForOpenOrClose(ws: WebSocket): Promise<"open" | "close"> {
-  return new Promise((resolve) => {
-    ws.once("open", () => resolve("open"));
-    ws.once("close", () => resolve("close"));
-    ws.once("error", () => resolve("close"));
-  });
-}
-
-describe("realtime WebSocket server", () => {
-  let server: Awaited<ReturnType<typeof startRealtimeServer>>["server"];
+describe("realtime SSE endpoint", () => {
+  let server: Awaited<ReturnType<typeof startServer>>["server"];
   let port: number;
 
   beforeEach(async () => {
-    ({ server, port } = await startRealtimeServer());
+    ({ server, port } = await startServer());
   });
 
   afterEach(async () => {
@@ -68,37 +103,28 @@ describe("realtime WebSocket server", () => {
   });
 
   it("rejects a connection with no token", async () => {
-    const ws = new WebSocket(`ws://localhost:${port}/api/ws`);
-    const outcome = await waitForOpenOrClose(ws);
-    expect(outcome).toBe("close");
+    const client = new SseClient(`http://localhost:${port}/api/events`);
+    expect(await client.waitForStatus()).toBe(401);
+    client.close();
   });
 
   it("rejects a connection with an invalid token", async () => {
-    const ws = new WebSocket(`ws://localhost:${port}/api/ws?token=not-a-real-token`);
-    const outcome = await waitForOpenOrClose(ws);
-    expect(outcome).toBe("close");
-  });
-
-  it("rejects a connection from a disallowed origin", async () => {
-    const { password } = await createTestUser({ email: "origin-test@test.local" });
-    const token = await loginAs("origin-test@test.local", password);
-    const ws = new WebSocket(`ws://localhost:${port}/api/ws?token=${token}`, { origin: "https://evil.example.com" });
-    const outcome = await waitForOpenOrClose(ws);
-    expect(outcome).toBe("close");
+    const client = new SseClient(`http://localhost:${port}/api/events?token=not-a-real-token`);
+    expect(await client.waitForStatus()).toBe(401);
+    client.close();
   });
 
   it("accepts a connection with a valid token and pushes a tag invalidation when that customer's order is paid", async () => {
     const { password } = await createTestUser({ email: "realtime-customer@test.local" });
     const token = await loginAs("realtime-customer@test.local", password);
 
-    const ws = new WebSocket(`ws://localhost:${port}/api/ws?token=${token}`);
-    const outcome = await waitForOpenOrClose(ws);
-    expect(outcome).toBe("open");
+    const client = new SseClient(`http://localhost:${port}/api/events?token=${token}`);
+    expect(await client.waitForStatus()).toBe(200);
 
     const { variant } = await createTestProduct({ basePrice: 15, stock: 5 });
     await request(app).post("/api/cart/items").set("Authorization", `Bearer ${token}`).send({ variantId: variant.id, quantity: 1 });
 
-    const messagePromise = waitForMessage(ws);
+    const messagePromise = client.waitForMessage();
     await request(app)
       .post("/api/checkout")
       .set("Authorization", `Bearer ${token}`)
@@ -124,7 +150,7 @@ describe("realtime WebSocket server", () => {
     const cartAtMessageTime = await request(app).get("/api/cart").set("Authorization", `Bearer ${token}`);
     expect(cartAtMessageTime.body.data.itemCount).toBe(0);
 
-    ws.close();
+    client.close();
   });
 
   it("pushes to a connected admin when any order is placed, not to an unrelated customer", async () => {
@@ -134,20 +160,25 @@ describe("realtime WebSocket server", () => {
     const { password: bystanderPassword } = await createTestUser({ email: "realtime-bystander@test.local" });
     const bystanderToken = await loginAs("realtime-bystander@test.local", bystanderPassword);
 
-    const adminWs = new WebSocket(`ws://localhost:${port}/api/ws?token=${adminToken}`);
-    const bystanderWs = new WebSocket(`ws://localhost:${port}/api/ws?token=${bystanderToken}`);
-    await Promise.all([waitForOpenOrClose(adminWs), waitForOpenOrClose(bystanderWs)]);
+    const adminClient = new SseClient(`http://localhost:${port}/api/events?token=${adminToken}`);
+    const bystanderClient = new SseClient(`http://localhost:${port}/api/events?token=${bystanderToken}`);
+    expect(await adminClient.waitForStatus()).toBe(200);
+    expect(await bystanderClient.waitForStatus()).toBe(200);
 
     const { password: buyerPassword } = await createTestUser({ email: "realtime-buyer@test.local" });
     const buyerToken = await loginAs("realtime-buyer@test.local", buyerPassword);
     const { variant } = await createTestProduct({ basePrice: 15, stock: 5 });
     await request(app).post("/api/cart/items").set("Authorization", `Bearer ${buyerToken}`).send({ variantId: variant.id, quantity: 1 });
 
-    const adminMessagePromise = waitForMessage(adminWs);
-    let bystanderGotMessage = false;
-    bystanderWs.once("message", () => {
-      bystanderGotMessage = true;
-    });
+    const adminMessagePromise = adminClient.waitForMessage();
+    // Two-argument then() (not a separate .catch()) so the expected timeout
+    // rejection is handled synchronously with the promise itself - an
+    // unhandled rejection here was destabilizing the whole test run rather
+    // than just failing this one assertion.
+    const bystanderGotMessage = bystanderClient.waitForMessage(500).then(
+      () => true,
+      () => false,
+    );
 
     await request(app)
       .post("/api/checkout")
@@ -167,9 +198,9 @@ describe("realtime WebSocket server", () => {
     const adminMessage = await adminMessagePromise;
     expect(adminMessage.tags).toContain("AdminOrder");
     expect(adminMessage.tags).toContain("AdminDashboard");
-    expect(bystanderGotMessage).toBe(false);
+    expect(await bystanderGotMessage).toBe(false);
 
-    adminWs.close();
-    bystanderWs.close();
+    adminClient.close();
+    bystanderClient.close();
   });
 });

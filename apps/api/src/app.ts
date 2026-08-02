@@ -23,7 +23,14 @@ export function createApp(): Express {
       credentials: true,
     }),
   );
-  app.use(compression());
+  app.use(
+    compression({
+      // compression buffers output to build its window, which breaks a
+      // streamed SSE connection - each event needs to reach the client as
+      // it's written, not once enough of them have accumulated to compress.
+      filter: (req, res) => (req.path === "/api/events" ? false : compression.filter(req, res)),
+    }),
+  );
   app.use(morgan(isProduction ? "combined" : "dev", { skip: () => env.NODE_ENV === "test" }));
 
   // Stripe requires the raw, unparsed request body to verify webhook
