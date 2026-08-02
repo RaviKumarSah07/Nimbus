@@ -18,3 +18,8 @@ export const removeAdmin = asyncHandler(async (req, res) => {
   await reviewService.deleteReview(req.params.id);
   sendSuccess(res, { deleted: true });
 });
+
+export const listAdmin = asyncHandler(async (req, res) => {
+  const result = await reviewService.listReviewsAdmin(req.query as never);
+  sendSuccess(res, result);
+});

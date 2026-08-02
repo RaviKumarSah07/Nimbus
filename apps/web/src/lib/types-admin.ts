@@ -117,3 +117,14 @@ export interface AdminOrderDto {
   returnRequests?: { id: string; orderItemId: string; reason: string; status: string }[];
   shippingAddress: Record<string, string>;
 }
+
+export interface AdminReviewDto {
+  id: string;
+  rating: number;
+  title: string;
+  body: string;
+  isVerifiedPurchase: boolean;
+  createdAt: string;
+  user: { id: string; name: string; email: string };
+  product: { id: string; name: string; slug: string };
+}
