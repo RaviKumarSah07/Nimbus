@@ -5,6 +5,7 @@ import { Container } from "../ui/Container";
 import { SearchBar } from "./SearchBar";
 import { AccountMenu } from "./AccountMenu";
 import { CartIcon } from "./CartIcon";
+import { NotificationBell } from "./NotificationBell";
 import { getCategoryTree } from "../../lib/serverApi";
 
 export async function Navbar() {
@@ -38,6 +39,7 @@ export async function Navbar() {
           </div>
 
           <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
             <CartIcon />
             <AccountMenu />
           </div>

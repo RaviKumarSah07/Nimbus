@@ -2,13 +2,24 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { CUSTOMER_CANCELLABLE_STATUSES } from "@ecommerce/shared";
+import { Truck } from "lucide-react";
+import { CUSTOMER_CANCELLABLE_STATUSES, type OrderStatus } from "@ecommerce/shared";
 import { useGetMyOrderQuery, useCancelOrderMutation, useRequestReturnMutation } from "../../store/api/ordersApi";
 import { OrderStatusTimeline } from "./OrderStatusTimeline";
 import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
 import { Badge } from "../ui/Badge";
 import { formatCurrency } from "../../lib/formatCurrency";
+
+const STATUS_TONE: Record<OrderStatus, "brand" | "success" | "warning" | "danger" | "neutral" | "accent"> = {
+  PENDING: "warning",
+  PAID: "brand",
+  PROCESSING: "accent",
+  SHIPPED: "brand",
+  DELIVERED: "success",
+  CANCELLED: "neutral",
+  RETURNED: "danger",
+};
 
 export function OrderDetail({ orderId }: { orderId: string }) {
   const { data: order, isLoading } = useGetMyOrderQuery(orderId);
@@ -44,7 +55,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
             <p className="text-sm font-semibold text-slate-900">{order.orderNumber}</p>
             <p className="text-xs text-slate-500">Placed {order.placedAt ? new Date(order.placedAt).toLocaleString() : "—"}</p>
           </div>
-          <Badge tone="brand">{order.status}</Badge>
+          <Badge tone={STATUS_TONE[order.status]}>{order.status}</Badge>
         </div>
 
         <ul className="divide-y divide-slate-100 rounded-md bg-white shadow-card">
@@ -125,6 +136,16 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           <h2 className="mb-4 text-sm font-semibold text-slate-900">Tracking</h2>
           {order.statusHistory && <OrderStatusTimeline history={order.statusHistory} />}
         </div>
+
+        {(order.trackingNumber || order.courier) && (
+          <div className="flex items-center gap-3 rounded-md bg-white shadow-card p-5">
+            <Truck className="h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" />
+            <div className="text-sm">
+              <p className="font-semibold text-slate-900">Shipped via {order.courier ?? "courier"}</p>
+              {order.trackingNumber && <p className="text-slate-500">Tracking number: {order.trackingNumber}</p>}
+            </div>
+          </div>
+        )}
 
         <div className="rounded-md bg-white shadow-card p-5">
           <h2 className="mb-2 text-sm font-semibold text-slate-900">Summary</h2>

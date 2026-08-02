@@ -53,6 +53,9 @@ export interface AdminProductDto {
 
 export interface DashboardStatsDto {
   totalRevenue: number;
+  confirmedRevenue: number;
+  pendingRevenue: number;
+  refundedAmount: number;
   orderCountsByStatus: Partial<Record<OrderStatus, number>>;
   totalCustomers: number;
   lowStockVariants: { variantId: string; sku: string; stock: number; productName: string; productSlug: string }[];
@@ -107,6 +110,8 @@ export interface AdminOrderDto {
   guestEmail: string | null;
   user: { id: string; name: string; email: string } | null;
   createdAt: string;
+  trackingNumber: string | null;
+  courier: string | null;
   items: { id: string; nameSnapshot: string; quantity: number; priceSnapshot: string; imageSnapshot: string | null; variantSnapshot: string | null }[];
   statusHistory?: { id: string; status: OrderStatus; note: string | null; createdAt: string }[];
   returnRequests?: { id: string; orderItemId: string; reason: string; status: string }[];

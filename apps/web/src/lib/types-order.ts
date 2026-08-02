@@ -51,6 +51,8 @@ export interface OrderDto {
   guestEmail: string | null;
   shippingAddress: AddressSnapshot;
   billingAddress: AddressSnapshot;
+  trackingNumber: string | null;
+  courier: string | null;
   createdAt: string;
   placedAt: string | null;
   items: OrderItemDto[];

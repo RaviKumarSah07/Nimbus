@@ -18,7 +18,10 @@ export const adminOrdersApi = baseApi.injectEndpoints({
       transformResponse: unwrap<AdminOrderDto>,
       providesTags: (_r, _e, id) => [{ type: "AdminOrder", id }],
     }),
-    updateAdminOrderStatus: builder.mutation<AdminOrderDto, { id: string; status: OrderStatus; note?: string }>({
+    updateAdminOrderStatus: builder.mutation<
+      AdminOrderDto,
+      { id: string; status: OrderStatus; note?: string; trackingNumber?: string; courier?: string }
+    >({
       query: ({ id, ...body }) => ({ url: `/admin/orders/${id}/status`, method: "PATCH", body }),
       transformResponse: unwrap<AdminOrderDto>,
       invalidatesTags: (_r, _e, { id }) => [{ type: "AdminOrder", id }, { type: "AdminOrder", id: "LIST" }, "AdminDashboard"],

@@ -11,6 +11,7 @@ import checkoutRoutes from "../modules/checkout/checkout.routes";
 import orderRoutes from "../modules/orders/order.routes";
 import reviewRoutes from "../modules/reviews/review.routes";
 import wishlistRoutes from "../modules/wishlist/wishlist.routes";
+import notificationRoutes from "../modules/notifications/notification.routes";
 import adminRoutes from "../modules/admin/admin.routes";
 
 const router = Router();
@@ -27,6 +28,7 @@ router.use("/checkout", checkoutRoutes);
 router.use("/orders", orderRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/wishlist", wishlistRoutes);
+router.use("/notifications", notificationRoutes);
 router.use("/admin", adminRoutes);
 
 // Remaining feature routers are mounted here as each module is built.

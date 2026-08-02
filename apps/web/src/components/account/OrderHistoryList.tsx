@@ -9,9 +9,10 @@ import { Badge } from "../ui/Badge";
 import { formatCurrency } from "../../lib/formatCurrency";
 import type { OrderStatus } from "@ecommerce/shared";
 
-const STATUS_TONE: Record<OrderStatus, "brand" | "success" | "warning" | "danger" | "neutral"> = {
+const STATUS_TONE: Record<OrderStatus, "brand" | "success" | "warning" | "danger" | "neutral" | "accent"> = {
   PENDING: "warning",
   PAID: "brand",
+  PROCESSING: "accent",
   SHIPPED: "brand",
   DELIVERED: "success",
   CANCELLED: "neutral",

@@ -14,6 +14,8 @@ export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export const updateOrderStatusSchema = z.object({
   status: z.enum(ORDER_STATUSES),
   note: z.string().trim().max(500).optional(),
+  trackingNumber: z.string().trim().max(100).optional(),
+  courier: z.string().trim().max(100).optional(),
 });
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 

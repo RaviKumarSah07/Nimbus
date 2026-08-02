@@ -9,9 +9,37 @@ interface RevenueRow {
   orders: bigint;
 }
 
+// Orders that are paid but haven't reached the customer yet - the money is
+// in hand but still at risk of a cancellation or a failed delivery.
+const IN_TRANSIT_STATUSES = ["PAID", "PROCESSING", "SHIPPED"] as const;
+
 export async function getDashboardStats() {
-  const [totalRevenueResult, orderCountsByStatus, totalCustomers, lowStockVariants, recentOrders] = await Promise.all([
+  const [
+    totalRevenueResult,
+    confirmedRevenueResult,
+    pendingRevenueResult,
+    refundedAmountResult,
+    orderCountsByStatus,
+    totalCustomers,
+    lowStockVariants,
+    recentOrders,
+  ] = await Promise.all([
+    // Gross - every order whose payment is currently held. Cancelling or
+    // returning a paid order flips it to REFUNDED (see order.service's
+    // updateOrderStatusAdmin/cancelOrder), so a reversed sale drops out of
+    // this figure instead of inflating it forever. That also means this
+    // number reconciles exactly to confirmed + pending below.
     prisma.order.aggregate({ where: { paymentStatus: "PAID" }, _sum: { grandTotal: true } }),
+    // Net/confirmed - only orders that completed the full journey, past the
+    // point a cancellation or failed delivery could still claw the sale back.
+    prisma.order.aggregate({ where: { status: "DELIVERED", paymentStatus: "PAID" }, _sum: { grandTotal: true } }),
+    // Collected but not yet earned - still reversible by a cancellation.
+    prisma.order.aggregate({ where: { paymentStatus: "PAID", status: { in: [...IN_TRANSIT_STATUSES] } }, _sum: { grandTotal: true } }),
+    // Money actually given back - covers both a paid order that was later
+    // cancelled and one returned after delivery, shown separately rather
+    // than netted out of gross so the dashboard shows the size of the
+    // problem, not just a smaller total.
+    prisma.order.aggregate({ where: { paymentStatus: "REFUNDED" }, _sum: { grandTotal: true } }),
     prisma.order.groupBy({ by: ["status"], _count: { status: true } }),
     prisma.user.count({ where: { role: "CUSTOMER", deletedAt: null } }),
     prisma.productVariant.findMany({
@@ -35,6 +63,9 @@ export async function getDashboardStats() {
 
   return {
     totalRevenue: Number(totalRevenueResult._sum.grandTotal ?? 0),
+    confirmedRevenue: Number(confirmedRevenueResult._sum.grandTotal ?? 0),
+    pendingRevenue: Number(pendingRevenueResult._sum.grandTotal ?? 0),
+    refundedAmount: Number(refundedAmountResult._sum.grandTotal ?? 0),
     orderCountsByStatus: Object.fromEntries(orderCountsByStatus.map((o) => [o.status, o._count.status])),
     totalCustomers,
     lowStockVariants: lowStockVariants.map((v) => ({

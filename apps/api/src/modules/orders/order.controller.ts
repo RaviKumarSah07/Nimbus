@@ -45,7 +45,14 @@ export const getAdmin = asyncHandler(async (req, res) => {
 });
 
 export const updateStatusAdmin = asyncHandler(async (req, res) => {
-  const order = await orderService.updateOrderStatusAdmin(req.params.id, req.body.status, req.body.note, req.user!.id);
+  const order = await orderService.updateOrderStatusAdmin(
+    req.params.id,
+    req.body.status,
+    req.body.note,
+    req.user!.id,
+    req.body.trackingNumber,
+    req.body.courier,
+  );
   sendSuccess(res, order);
 });
 

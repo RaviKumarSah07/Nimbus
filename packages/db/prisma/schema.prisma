@@ -22,10 +22,20 @@ enum Role {
 enum OrderStatus {
   PENDING
   PAID
+  PROCESSING
   SHIPPED
   DELIVERED
   CANCELLED
   RETURNED
+}
+
+enum NotificationType {
+  ORDER_PLACED
+  ORDER_PROCESSING
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  ORDER_RETURNED
 }
 
 enum PaymentStatus {
@@ -77,6 +87,7 @@ model User {
   orders             Order[]
   auditLogs          AuditLog[]            @relation("AuditActor")
   orderStatusChanges OrderStatusHistory[]  @relation("StatusChangedBy")
+  notifications      Notification[]
 
   @@index([role])
 }
@@ -345,6 +356,11 @@ model Order {
   coupon          Coupon?       @relation(fields: [couponId], references: [id], onDelete: SetNull)
   shippingAddress Json
   billingAddress  Json
+  // Set together, only once an admin marks the order Shipped. No real
+  // courier integration exists, so these are free-text - display and
+  // record-keeping only, not a tracking-number format or a live lookup.
+  trackingNumber  String?
+  courier         String?
   placedAt        DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -388,6 +404,25 @@ model OrderStatusHistory {
   createdAt       DateTime    @default(now())
 
   @@index([orderId])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  recipient   User             @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  title       String
+  message     String
+  // Where clicking the notification should navigate - an order detail
+  // page in every current use, but kept generic rather than an orderId
+  // foreign key so notification types that aren't order-shaped later
+  // don't need a schema change.
+  link        String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  @@index([recipientId, isRead])
+  @@index([recipientId, createdAt])
 }
 
 model ReturnRequest {

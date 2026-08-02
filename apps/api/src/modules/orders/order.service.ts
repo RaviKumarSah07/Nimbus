@@ -5,10 +5,15 @@ import { ApiError } from "../../utils/ApiError";
 import { logger } from "../../utils/logger";
 import { recordAudit } from "../../utils/audit";
 import { buildPaginatedResult } from "../../utils/response";
-import { CUSTOMER_CANCELLABLE_STATUSES } from "@ecommerce/shared";
+import { CUSTOMER_CANCELLABLE_STATUSES, ORDER_STATUS_TRANSITIONS } from "@ecommerce/shared";
 import type { CartView } from "../cart/cart.types";
 import type { AppliedDiscount } from "../coupons/coupon.service";
 import { calculateShipping, calculateTax } from "../../config/commerce";
+import { notifyUser, notifyAdmins } from "../notifications/notification.service";
+
+function formatMoney(amount: number, currency: string): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+}
 
 export function generateOrderNumber(): string {
   const datePart = dayjs().format("YYYYMMDD");
@@ -87,10 +92,10 @@ export async function createPendingOrder(params: CreatePendingOrderParams) {
 
 /** Idempotent - safe to call more than once for the same order (Stripe may retry webhook delivery). */
 export async function markOrderPaid(orderId: string, paymentIntentId?: string) {
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
     if (!order) throw ApiError.notFound(`Order ${orderId} not found`);
-    if (order.paymentStatus === "PAID") return order;
+    if (order.paymentStatus === "PAID") return null;
 
     for (const item of order.items) {
       if (!item.variantId) continue;
@@ -111,7 +116,7 @@ export async function markOrderPaid(orderId: string, paymentIntentId?: string) {
       await tx.coupon.update({ where: { id: order.couponId }, data: { usageCount: { increment: 1 } } });
     }
 
-    const updated = await tx.order.update({
+    const result = await tx.order.update({
       where: { id: orderId },
       data: { status: "PAID", paymentStatus: "PAID", paymentIntentId, placedAt: new Date() },
     });
@@ -119,8 +124,31 @@ export async function markOrderPaid(orderId: string, paymentIntentId?: string) {
     await tx.orderStatusHistory.create({ data: { orderId, status: "PAID", note: "Payment confirmed" } });
     logger.info("Order paid", { orderId, orderNumber: order.orderNumber });
 
-    return updated;
+    return result;
   });
+
+  // Only on the real transition - a retried webhook hitting the early
+  // idempotency return above must not send a second "order placed" alert.
+  if (updated) {
+    await notifyAdmins({
+      type: "ORDER_PLACED",
+      title: "New order placed",
+      message: `Order ${updated.orderNumber} for ${formatMoney(Number(updated.grandTotal), updated.currency)} was just paid.`,
+      link: `/admin/orders/${updated.id}`,
+    });
+
+    if (updated.userId) {
+      await notifyUser({
+        recipientId: updated.userId,
+        type: "ORDER_PLACED",
+        title: "Order confirmed",
+        message: `Your order ${updated.orderNumber} has been placed and payment confirmed.`,
+        link: `/account/orders/${updated.id}`,
+      });
+    }
+  }
+
+  return updated;
 }
 
 export async function markOrderPaymentFailed(orderId: string) {
@@ -165,15 +193,6 @@ export async function getOrderConfirmation(orderId: string) {
   return order;
 }
 
-const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  PENDING: ["PAID", "CANCELLED"],
-  PAID: ["SHIPPED", "CANCELLED"],
-  SHIPPED: ["DELIVERED"],
-  DELIVERED: ["RETURNED"],
-  CANCELLED: [],
-  RETURNED: [],
-};
-
 async function restockOrderItems(tx: Prisma.TransactionClient, orderId: string) {
   const items = await tx.orderItem.findMany({ where: { orderId } });
   for (const item of items) {
@@ -191,13 +210,30 @@ export async function cancelOrder(userId: string, orderId: string, reason: strin
     throw ApiError.conflict(`Orders in "${order.status}" status can no longer be cancelled`);
   }
 
-  return prisma.$transaction(async (tx) => {
-    if (order.paymentStatus === "PAID") await restockOrderItems(tx, orderId);
+  const wasPaid = order.paymentStatus === "PAID";
 
-    const updated = await tx.order.update({ where: { id: orderId }, data: { status: "CANCELLED" } });
+  const updated = await prisma.$transaction(async (tx) => {
+    if (wasPaid) await restockOrderItems(tx, orderId);
+
+    // Restocking reverses the sale, so the payment record has to follow -
+    // otherwise a cancelled-after-payment order stays "PAID" forever and
+    // permanently inflates revenue for a sale that no longer exists.
+    const result = await tx.order.update({
+      where: { id: orderId },
+      data: { status: "CANCELLED", ...(wasPaid ? { paymentStatus: "REFUNDED" } : {}) },
+    });
     await tx.orderStatusHistory.create({ data: { orderId, status: "CANCELLED", note: reason, changedByUserId: userId } });
-    return updated;
+    return result;
   });
+
+  await notifyAdmins({
+    type: "ORDER_CANCELLED",
+    title: "Customer cancelled an order",
+    message: `Order ${updated.orderNumber} was cancelled by the customer: "${reason}"`,
+    link: `/admin/orders/${updated.id}`,
+  });
+
+  return updated;
 }
 
 export async function requestReturn(userId: string, orderId: string, orderItemId: string, reason: string) {
@@ -231,25 +267,84 @@ export async function getOrderAdmin(orderId: string) {
   return order;
 }
 
-export async function updateOrderStatusAdmin(orderId: string, nextStatus: OrderStatus, note: string | undefined, adminUserId: string) {
+interface StatusNotificationContent {
+  type: "ORDER_PROCESSING" | "ORDER_SHIPPED" | "ORDER_DELIVERED" | "ORDER_CANCELLED" | "ORDER_RETURNED";
+  title: string;
+  message: string;
+}
+
+function buildStatusNotification(
+  status: OrderStatus,
+  orderNumber: string,
+  trackingNumber: string | null,
+  courier: string | null,
+): StatusNotificationContent | null {
+  switch (status) {
+    case "PROCESSING":
+      return { type: "ORDER_PROCESSING", title: "Order is being processed", message: `Order ${orderNumber} is now being prepared for shipment.` };
+    case "SHIPPED": {
+      const shipmentDetail = trackingNumber ? ` Tracking: ${trackingNumber}${courier ? ` (${courier})` : ""}.` : "";
+      return { type: "ORDER_SHIPPED", title: "Order shipped", message: `Order ${orderNumber} is on its way.${shipmentDetail}` };
+    }
+    case "DELIVERED":
+      return { type: "ORDER_DELIVERED", title: "Order delivered", message: `Order ${orderNumber} was delivered. We hope you enjoy it!` };
+    case "CANCELLED":
+      return { type: "ORDER_CANCELLED", title: "Order cancelled", message: `Order ${orderNumber} was cancelled by our team.` };
+    case "RETURNED":
+      return { type: "ORDER_RETURNED", title: "Order marked as returned", message: `Order ${orderNumber} has been marked as returned.` };
+    default:
+      return null;
+  }
+}
+
+export async function updateOrderStatusAdmin(
+  orderId: string,
+  nextStatus: OrderStatus,
+  note: string | undefined,
+  adminUserId: string,
+  trackingNumber?: string,
+  courier?: string,
+) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw ApiError.notFound("Order not found");
 
-  const allowed = VALID_TRANSITIONS[order.status];
+  const allowed = ORDER_STATUS_TRANSITIONS[order.status];
   if (!allowed.includes(nextStatus)) {
     throw ApiError.badRequest(`Cannot move an order from "${order.status}" to "${nextStatus}"`);
   }
 
+  const isReversal = (nextStatus === "CANCELLED" || nextStatus === "RETURNED") && order.paymentStatus === "PAID";
+
   const updated = await prisma.$transaction(async (tx) => {
-    if ((nextStatus === "CANCELLED" || nextStatus === "RETURNED") && order.paymentStatus === "PAID") {
-      await restockOrderItems(tx, orderId);
-    }
-    const result = await tx.order.update({ where: { id: orderId }, data: { status: nextStatus } });
+    if (isReversal) await restockOrderItems(tx, orderId);
+
+    const result = await tx.order.update({
+      where: { id: orderId },
+      data: {
+        status: nextStatus,
+        // Restocking reverses the sale, so the payment record has to
+        // follow - otherwise a cancelled/returned order stays "PAID"
+        // forever and permanently inflates revenue for a sale that no
+        // longer exists.
+        ...(isReversal ? { paymentStatus: "REFUNDED" } : {}),
+        // Only ever set on the Shipped transition in the UI, but persisted
+        // unconditionally here so a correction (wrong tracking number typed
+        // in) can be re-sent without forcing another status change.
+        ...(trackingNumber ? { trackingNumber } : {}),
+        ...(courier ? { courier } : {}),
+      },
+    });
     await tx.orderStatusHistory.create({ data: { orderId, status: nextStatus, note, changedByUserId: adminUserId } });
     return result;
   });
 
   await recordAudit({ actorUserId: adminUserId, action: "order.status_update", entityType: "Order", entityId: orderId, metadata: { from: order.status, to: nextStatus } });
+
+  const content = buildStatusNotification(nextStatus, updated.orderNumber, updated.trackingNumber, updated.courier);
+  if (content && updated.userId) {
+    await notifyUser({ recipientId: updated.userId, ...content, link: `/account/orders/${updated.id}` });
+  }
+
   return updated;
 }
 

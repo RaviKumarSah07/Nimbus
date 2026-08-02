@@ -5,8 +5,31 @@
 export const ROLES = ["CUSTOMER", "ADMIN"] as const;
 export type Role = (typeof ROLES)[number];
 
-export const ORDER_STATUSES = ["PENDING", "PAID", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED"] as const;
+export const ORDER_STATUSES = ["PENDING", "PAID", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+// The one allowed-transitions table, imported by both the API (to enforce
+// it) and the admin UI (to know which buttons to show) so the two can never
+// drift into disagreeing about what move is legal.
+export const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PENDING: ["PAID", "CANCELLED"],
+  PAID: ["PROCESSING", "CANCELLED"],
+  PROCESSING: ["SHIPPED", "CANCELLED"],
+  SHIPPED: ["DELIVERED"],
+  DELIVERED: ["RETURNED"],
+  CANCELLED: [],
+  RETURNED: [],
+};
+
+export const NOTIFICATION_TYPES = [
+  "ORDER_PLACED",
+  "ORDER_PROCESSING",
+  "ORDER_SHIPPED",
+  "ORDER_DELIVERED",
+  "ORDER_CANCELLED",
+  "ORDER_RETURNED",
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export const PAYMENT_STATUSES = ["UNPAID", "PAID", "REFUNDED", "FAILED"] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];

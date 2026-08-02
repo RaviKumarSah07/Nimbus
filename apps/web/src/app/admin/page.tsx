@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DollarSign, ShoppingBag, Users, AlertTriangle } from "lucide-react";
+import { DollarSign, ShoppingBag, Users, AlertTriangle, CheckCircle2, Clock, Undo2 } from "lucide-react";
 import { useGetAdminDashboardQuery } from "../../store/api/admin/dashboardApi";
 import { StatTile } from "../../components/admin/StatTile";
 import { RevenueChart } from "../../components/admin/RevenueChart";
@@ -10,9 +10,10 @@ import { Spinner } from "../../components/ui/Spinner";
 import { formatCurrency } from "../../lib/formatCurrency";
 import type { OrderStatus } from "@ecommerce/shared";
 
-const STATUS_TONE: Record<OrderStatus, "brand" | "success" | "warning" | "danger" | "neutral"> = {
+const STATUS_TONE: Record<OrderStatus, "brand" | "success" | "warning" | "danger" | "neutral" | "accent"> = {
   PENDING: "warning",
   PAID: "brand",
+  PROCESSING: "accent",
   SHIPPED: "brand",
   DELIVERED: "success",
   CANCELLED: "neutral",
@@ -33,6 +34,41 @@ export default function AdminDashboardPage() {
         <StatTile label="Orders" value={String(totalOrders)} icon={ShoppingBag} />
         <StatTile label="Customers" value={String(data.totalCustomers)} icon={Users} />
         <StatTile label="Low stock SKUs" value={String(data.lowStockVariants.length)} icon={AlertTriangle} />
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-1 text-sm font-semibold text-slate-900">Revenue breakdown</h2>
+        <p className="mb-4 text-xs text-slate-500">How much of what&apos;s been collected is actually earned versus still at risk.</p>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <RevenueBreakdownItem
+            icon={DollarSign}
+            label="Gross revenue"
+            hint="All paid orders"
+            value={formatCurrency(data.totalRevenue)}
+            tone="text-slate-900"
+          />
+          <RevenueBreakdownItem
+            icon={CheckCircle2}
+            label="Confirmed"
+            hint="Delivered orders"
+            value={formatCurrency(data.confirmedRevenue)}
+            tone="text-emerald-700"
+          />
+          <RevenueBreakdownItem
+            icon={Clock}
+            label="Pending"
+            hint="Paid, still in transit"
+            value={formatCurrency(data.pendingRevenue)}
+            tone="text-accent-700"
+          />
+          <RevenueBreakdownItem
+            icon={Undo2}
+            label="Refunded"
+            hint="Cancelled or returned after payment"
+            value={formatCurrency(data.refundedAmount)}
+            tone="text-red-700"
+          />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -94,6 +130,31 @@ export default function AdminDashboardPage() {
             ))}
           </ul>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function RevenueBreakdownItem({
+  icon: Icon,
+  label,
+  hint,
+  value,
+  tone,
+}: {
+  icon: typeof DollarSign;
+  label: string;
+  hint: string;
+  value: string;
+  tone: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-slate-100 p-3">
+      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone}`} aria-hidden="true" />
+      <div>
+        <p className={`text-lg font-bold ${tone}`}>{value}</p>
+        <p className="text-xs font-medium text-slate-700">{label}</p>
+        <p className="text-[11px] text-slate-400">{hint}</p>
       </div>
     </div>
   );
