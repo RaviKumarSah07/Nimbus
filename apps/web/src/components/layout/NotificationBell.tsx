@@ -14,7 +14,11 @@ import { useAppSelector } from "../../store/hooks";
 import { formatRelativeTime } from "../../lib/formatRelativeTime";
 import { Spinner } from "../ui/Spinner";
 
-const POLL_INTERVAL_MS = 30_000;
+// RealtimeProvider pushes an instant invalidation on every new notification,
+// so this poll is just a fallback for the window between page load and the
+// socket connecting, or a dropped connection - not the primary mechanism
+// anymore, hence the long interval.
+const POLL_INTERVAL_MS = 90_000;
 
 /**
  * Lives once in the sitewide Navbar (root layout), so it's already present

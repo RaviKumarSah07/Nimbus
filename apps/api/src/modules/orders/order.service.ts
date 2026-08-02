@@ -10,6 +10,9 @@ import type { CartView } from "../cart/cart.types";
 import type { AppliedDiscount } from "../coupons/coupon.service";
 import { calculateShipping, calculateTax } from "../../config/commerce";
 import { notifyUser, notifyAdmins } from "../notifications/notification.service";
+import { pushToUser, pushToAdmins } from "../../lib/realtime";
+import { clearCart } from "../cart/cart.service";
+import type { CartIdentity } from "../cart/cart.types";
 
 function formatMoney(amount: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
@@ -90,8 +93,8 @@ export async function createPendingOrder(params: CreatePendingOrderParams) {
   return order;
 }
 
-/** Idempotent - safe to call more than once for the same order (Stripe may retry webhook delivery). */
-export async function markOrderPaid(orderId: string, paymentIntentId?: string) {
+/** Idempotent - safe to call more than once for the same order (Stripe may retry webhook delivery). `guestToken` is only consulted when the order has no `userId`. */
+export async function markOrderPaid(orderId: string, paymentIntentId?: string, guestToken?: string) {
   const updated = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
     if (!order) throw ApiError.notFound(`Order ${orderId} not found`);
@@ -130,11 +133,19 @@ export async function markOrderPaid(orderId: string, paymentIntentId?: string) {
   // Only on the real transition - a retried webhook hitting the early
   // idempotency return above must not send a second "order placed" alert.
   if (updated) {
+    // Cleared before the "Cart" push below fires, not after - a client that
+    // refetches the instant it's notified would otherwise win the race and
+    // read the cart before this has actually run, showing the just-paid
+    // items as if checkout had done nothing.
+    const cartIdentity: CartIdentity | undefined = updated.userId ? { userId: updated.userId } : guestToken ? { guestToken } : undefined;
+    if (cartIdentity) await clearCart(cartIdentity);
+
     await notifyAdmins({
       type: "ORDER_PLACED",
       title: "New order placed",
       message: `Order ${updated.orderNumber} for ${formatMoney(Number(updated.grandTotal), updated.currency)} was just paid.`,
       link: `/admin/orders/${updated.id}`,
+      tags: ["AdminOrder", "AdminDashboard"],
     });
 
     if (updated.userId) {
@@ -144,6 +155,9 @@ export async function markOrderPaid(orderId: string, paymentIntentId?: string) {
         title: "Order confirmed",
         message: `Your order ${updated.orderNumber} has been placed and payment confirmed.`,
         link: `/account/orders/${updated.id}`,
+        // Cart included - this is the moment the paid-for items actually
+        // leave it, so any other open tab/device needs to know right away.
+        tags: ["Order", "Cart"],
       });
     }
   }
@@ -231,7 +245,11 @@ export async function cancelOrder(userId: string, orderId: string, reason: strin
     title: "Customer cancelled an order",
     message: `Order ${updated.orderNumber} was cancelled by the customer: "${reason}"`,
     link: `/admin/orders/${updated.id}`,
+    tags: ["AdminOrder", "AdminDashboard"],
   });
+  // The acting tab already gets a fresh Order list via the mutation's own
+  // invalidatesTags - this covers any other tab/device the customer has open.
+  pushToUser(userId, ["Order"]);
 
   return updated;
 }
@@ -342,8 +360,11 @@ export async function updateOrderStatusAdmin(
 
   const content = buildStatusNotification(nextStatus, updated.orderNumber, updated.trackingNumber, updated.courier);
   if (content && updated.userId) {
-    await notifyUser({ recipientId: updated.userId, ...content, link: `/account/orders/${updated.id}` });
+    await notifyUser({ recipientId: updated.userId, ...content, link: `/account/orders/${updated.id}`, tags: ["Order"] });
   }
+  // The acting admin's own tab already gets a fresh order/dashboard via the
+  // mutation's own invalidatesTags - this covers any other connected admin.
+  pushToAdmins(["AdminOrder", "AdminDashboard"]);
 
   return updated;
 }

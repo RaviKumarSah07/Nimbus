@@ -3,7 +3,6 @@ import express from "express";
 import type Stripe from "stripe";
 import { stripeGateway } from "../payments/paymentGateway";
 import * as orderService from "../orders/order.service";
-import * as cartService from "../cart/cart.service";
 import { logger } from "../../utils/logger";
 
 export const stripeWebhookRouter = Router();
@@ -36,11 +35,11 @@ stripeWebhookRouter.post("/stripe", express.raw({ type: "application/json" }), a
         const orderId = session.client_reference_id;
         if (!orderId) break;
 
-        await orderService.markOrderPaid(orderId, typeof session.payment_intent === "string" ? session.payment_intent : undefined);
-
-        const guestToken = session.metadata?.guestToken;
-        const order = await orderService.getOrderConfirmation(orderId);
-        await cartService.clearCart(order.userId ? { userId: order.userId } : { guestToken: guestToken || undefined });
+        await orderService.markOrderPaid(
+          orderId,
+          typeof session.payment_intent === "string" ? session.payment_intent : undefined,
+          session.metadata?.guestToken,
+        );
         break;
       }
       case "checkout.session.async_payment_failed":

@@ -37,8 +37,9 @@ export async function startCheckout(identity: CartIdentity, input: CheckoutInput
   });
 
   if (session.immediatelyPaid) {
-    await orderService.markOrderPaid(order.id, session.providerSessionId);
-    await cartService.clearCart(identity);
+    // markOrderPaid clears the cart itself, before it notifies anyone the
+    // order is paid - see the comment there for why the ordering matters.
+    await orderService.markOrderPaid(order.id, session.providerSessionId, identity.guestToken);
   }
 
   return { checkoutUrl: session.checkoutUrl, orderId: order.id, orderNumber: order.orderNumber };
