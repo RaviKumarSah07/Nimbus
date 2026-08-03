@@ -5,7 +5,17 @@ import { useAppDispatch, useAppSelector } from "./hooks";
 import { baseApi } from "./api/baseApi";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000/api";
-const EVENTS_URL = `${API_BASE_URL}/events`;
+
+/**
+ * Deliberately separate from the REST base URL. When the API is proxied
+ * through this app's own origin (see API_PROXY_TARGET in next.config.mjs, which
+ * exists so the auth cookie is first-party), everything else benefits - but a
+ * long-lived event stream should not go through that hop, where a serverless
+ * proxy is liable to buffer it or cut it off at a function timeout. SSE carries
+ * its token in the query string rather than a cookie, so it has no reason to be
+ * same-origin: point this straight at the API.
+ */
+const EVENTS_URL = `${process.env.NEXT_PUBLIC_REALTIME_BASE_URL ?? API_BASE_URL}/events`;
 
 type CacheTag = Parameters<typeof baseApi.util.invalidateTags>[0][number];
 
