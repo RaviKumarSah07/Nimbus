@@ -17,6 +17,15 @@ import adminRoutes from "../modules/admin/admin.routes";
 
 const router = Router();
 
+// Mirrors the top-level /health that Render polls, but under /api so the web
+// app can reach it the same way it reaches everything else - including when
+// the API is proxied through the site's own origin, where only /api/* is
+// rewritten. Used to tell "the server is still waking up" apart from "the
+// site is broken" on a cold start.
+router.get("/health", (_req, res) => {
+  res.json({ status: "ok", time: new Date().toISOString() });
+});
+
 router.use("/auth", authRoutes);
 router.use("/users", userRoutes);
 router.use("/products", productRoutes);
