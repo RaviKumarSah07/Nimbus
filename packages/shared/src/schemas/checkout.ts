@@ -11,6 +11,15 @@ export const checkoutSchema = z.object({
 });
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
+// Sent by the success page the payment gateway redirects back to. sessionId is
+// optional because the mock gateway has no session to verify - the order is
+// already paid by the time that redirect happens.
+export const confirmCheckoutSchema = z.object({
+  orderId: z.string().cuid(),
+  sessionId: z.string().trim().max(255).optional(),
+});
+export type ConfirmCheckoutInput = z.infer<typeof confirmCheckoutSchema>;
+
 export const updateOrderStatusSchema = z.object({
   status: z.enum(ORDER_STATUSES),
   note: z.string().trim().max(500).optional(),

@@ -4,7 +4,11 @@ import { OrderReceipt } from "../../../components/checkout/OrderReceipt";
 
 export const metadata: Metadata = { title: "Order confirmed" };
 
-export default function CheckoutSuccessPage({ searchParams }: { searchParams: { orderId?: string } }) {
+export default function CheckoutSuccessPage({
+  searchParams,
+}: {
+  searchParams: { orderId?: string; session_id?: string };
+}) {
   if (!searchParams.orderId) {
     return (
       <Container className="py-16 text-center">
@@ -15,7 +19,9 @@ export default function CheckoutSuccessPage({ searchParams }: { searchParams: { 
 
   return (
     <Container className="py-8">
-      <OrderReceipt orderId={searchParams.orderId} />
+      {/* session_id is substituted by Stripe on the redirect back and is what
+          lets the receipt confirm the payment rather than assume it. */}
+      <OrderReceipt orderId={searchParams.orderId} sessionId={searchParams.session_id} />
     </Container>
   );
 }

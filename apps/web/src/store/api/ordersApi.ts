@@ -19,6 +19,9 @@ export const ordersApi = baseApi.injectEndpoints({
     getOrderConfirmation: builder.query<OrderDto, string>({
       query: (id) => `/orders/confirmation/${id}`,
       transformResponse: unwrap<OrderDto>,
+      // Tagged so confirming the payment re-reads the receipt - without this
+      // it would keep showing the PENDING snapshot it first loaded.
+      providesTags: (_result, _error, id) => [{ type: "Order", id }],
     }),
     cancelOrder: builder.mutation<OrderDto, { id: string; reason: string }>({
       query: ({ id, reason }) => ({ url: `/orders/${id}/cancel`, method: "POST", body: { reason } }),

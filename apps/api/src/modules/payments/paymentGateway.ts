@@ -51,12 +51,22 @@ class StripePaymentGateway implements PaymentGateway {
       client_reference_id: params.orderId,
       customer_email: params.customerEmail,
       metadata: { orderId: params.orderId, guestToken: params.guestToken ?? "" },
-      success_url: `${env.STRIPE_SUCCESS_URL}?orderId=${params.orderId}`,
+      // {CHECKOUT_SESSION_ID} is a Stripe template Stripe itself substitutes
+      // on the redirect back. It lets the success page prove which session it
+      // is returning from, so payment can be confirmed straight away instead
+      // of waiting on a webhook that may be slow, misconfigured, or (in local
+      // development) unable to reach this machine at all.
+      success_url: `${env.STRIPE_SUCCESS_URL}?orderId=${params.orderId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${env.STRIPE_CANCEL_URL}?orderId=${params.orderId}`,
     });
 
     if (!session.url) throw new Error("Stripe did not return a checkout URL");
     return { checkoutUrl: session.url, providerSessionId: session.id };
+  }
+
+  /** Used by the success-page confirmation path to check with Stripe whether a session was actually paid. */
+  async retrieveCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    return this.stripe.checkout.sessions.retrieve(sessionId);
   }
 
   verifyAndParseWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {

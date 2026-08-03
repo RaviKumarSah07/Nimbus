@@ -1,24 +1,43 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { useGetOrderConfirmationQuery } from "../../store/api/ordersApi";
+import { useConfirmCheckoutMutation } from "../../store/api/checkoutApi";
 import { useAppSelector } from "../../store/hooks";
 import { Spinner } from "../ui/Spinner";
 import { Button } from "../ui/Button";
 import { formatCurrency } from "../../lib/formatCurrency";
 
-export function OrderReceipt({ orderId }: { orderId: string }) {
+export function OrderReceipt({ orderId, sessionId }: { orderId: string; sessionId?: string }) {
   // Coming back from the payment gateway is a cold page load, so the session
   // is still being restored. Firing this now would 401 and kick off a second,
   // competing token refresh - wait for bootstrap to settle either way.
   const authStatus = useAppSelector((state) => state.auth.status);
   const isRestoringSession = authStatus === "idle" || authStatus === "loading";
 
+  const [confirmCheckout, { isLoading: isConfirming }] = useConfirmCheckoutMutation();
+  const hasConfirmed = useRef(false);
+
+  // Settle the payment before showing the receipt. The webhook may well have
+  // done this already - the endpoint is idempotent, so whichever gets there
+  // first wins and this simply reports the state. Doing it here is what makes
+  // the cart clear and the admin views update the moment the customer lands
+  // back on the site, instead of whenever (or if) the webhook arrives.
+  useEffect(() => {
+    if (isRestoringSession || hasConfirmed.current) return;
+    hasConfirmed.current = true;
+    void confirmCheckout({ orderId, sessionId }).unwrap().catch(() => {
+      // Confirmation is best-effort: the receipt below still renders from the
+      // order itself, and the webhook remains the authoritative backstop.
+    });
+  }, [isRestoringSession, confirmCheckout, orderId, sessionId]);
+
   const { data: order, isLoading, error } = useGetOrderConfirmationQuery(orderId, { skip: isRestoringSession });
 
-  if (isRestoringSession || isLoading) return <Spinner label="Loading your order" />;
+  if (isRestoringSession || isLoading || isConfirming) return <Spinner label="Confirming your order" />;
   if (error || !order) return <p className="text-sm text-red-600">We couldn&apos;t find that order.</p>;
 
   return (

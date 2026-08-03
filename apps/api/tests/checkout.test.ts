@@ -89,3 +89,48 @@ describe("checkout (no STRIPE_SECRET_KEY configured in tests, so the mock gatewa
     expect(Number(confirmation.body.data.discountTotal)).toBeCloseTo(10, 2);
   });
 });
+
+/**
+ * The success page calls this on the way back from the gateway so a completed
+ * payment settles even when the webhook never arrives - which is what left real
+ * paid orders stuck on PENDING, with the cart unemptied and the admin views
+ * showing nothing. Stripe isn't configured in tests, so what's covered here is
+ * the contract around the verification rather than the Stripe call itself.
+ */
+describe("checkout confirmation", () => {
+  it("is idempotent - confirming an already-paid order reports it without changing anything", async () => {
+    const { variant } = await createTestProduct({ basePrice: 25, stock: 5 });
+    const guestToken = "guest-confirm-idempotent";
+
+    await request(app).post("/api/cart/items").set(GUEST_TOKEN_HEADER, guestToken).send({ variantId: variant.id, quantity: 2 });
+    const checkout = await request(app)
+      .post("/api/checkout")
+      .set(GUEST_TOKEN_HEADER, guestToken)
+      .send({ shippingAddress, guestEmail: "buyer@example.com" });
+    const { orderId } = checkout.body.data;
+
+    const stockAfterPayment = (await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).stock;
+
+    const confirm = await request(app).post("/api/checkout/confirm").send({ orderId });
+    expect(confirm.status).toBe(200);
+    expect(confirm.body.data.paymentStatus).toBe("PAID");
+    expect(confirm.body.data.alreadyConfirmed).toBe(true);
+
+    // A second settlement would decrement stock twice and double-count revenue.
+    const stockAfterConfirm = (await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).stock;
+    expect(stockAfterConfirm).toBe(stockAfterPayment);
+
+    const history = await prisma.orderStatusHistory.count({ where: { orderId, status: "PAID" } });
+    expect(history).toBe(1);
+  });
+
+  it("rejects an unknown order", async () => {
+    const res = await request(app).post("/api/checkout/confirm").send({ orderId: "cl00000000000000000000000" });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects a malformed request", async () => {
+    const res = await request(app).post("/api/checkout/confirm").send({ orderId: "not-a-cuid" });
+    expect(res.status).toBe(400);
+  });
+});
